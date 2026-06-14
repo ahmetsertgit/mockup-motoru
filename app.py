@@ -2,56 +2,62 @@ import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 from PIL import Image
 import io
+import zipfile
 
-# Sayfa ayarları
-st.set_page_config(page_title="Print On Demand Mockup Motoru", layout="wide")
-st.title("👕 Otomatik Mockup Giydirme Sistemi")
-
-# Google Bağlantıları
+# Google Servis Yetkilendirme
 @st.cache_resource
 def get_services():
     creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], 
                                                  scopes=['https://www.googleapis.com/auth/spreadsheets', 
-                                                         'https://www.googleapis.com/auth/drive.readonly'])
-    sheets_client = gspread.authorize(creds)
-    drive_service = build('drive', 'v3', credentials=creds)
-    return sheets_client, drive_service
+                                                         'https://www.googleapis.com/auth/drive'])
+    return gspread.authorize(creds), build('drive', 'v3', credentials=creds)
 
 sheets_client, drive_service = get_services()
 
-# Google Drive'dan görseli indirme fonksiyonu
-def drive_gorsel_indir(file_id):
-    request = drive_service.files().get_media(fileId=file_id)
-    file_content = io.BytesIO(request.execute())
-    return Image.open(file_content).convert("RGBA")
+st.title("👕 Profesyonel Mockup Üretim Hattı")
 
-# Arayüz
+# Verileri çek
 tablo = sheets_client.open("Mockup_Veritabani").worksheet("Sayfa1")
 veriler = tablo.get_all_records()
-kategoriler = list(set([satir["kategori"] for satir in veriler]))
 
-kategori_secimi = st.selectbox("Kategori Seçin", kategoriler)
-yuklenen_tasarim = st.file_uploader("Tasarım (PNG)", type=["png"])
+# 1. Arayüz: Tasarım Yükleme ve Önizleme
+yuklenen_tasarim = st.file_uploader("Tasarımınızı (PNG) Yükleyin", type=["png"])
+if yuklenen_tasarim:
+    st.image(yuklenen_tasarim, caption="Yüklenen Tasarım", width=200) # Küçük boyutlu önizleme
+
+kategori = st.selectbox("Kategori Seçin", list(set([s["kategori"] for s in veriler])))
 
 if yuklenen_tasarim and st.button("Üretime Başla"):
     tasarim = Image.open(yuklenen_tasarim).convert("RGBA")
+    zip_buffer = io.BytesIO()
     
-    for satir in veriler:
-        if satir["kategori"] == kategori_secimi:
-            with st.spinner(f"{satir['mockup_id']} işleniyor..."):
-                # Mockup'ı Drive'dan çek
-                mockup = drive_gorsel_indir(satir["drive_file_id"])
+    with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED) as zip_file:
+        for satir in veriler:
+            if satir["kategori"] == kategori:
+                # Mockup indir
+                request = drive_service.files().get_media(fileId=satir["drive_file_id"])
+                mockup = Image.open(io.BytesIO(request.execute())).convert("RGBA")
                 
-                # Tasarımı boyutlandır ve yapıştır
+                # Birleştirme
                 tasarim_resized = tasarim.resize((satir["genislik"], satir["yukseklik"]), Image.Resampling.LANCZOS)
                 mockup.paste(tasarim_resized, (satir["x_noktasi"], satir["y_noktasi"]), tasarim_resized)
                 
-                # Sonucu göster
-                st.image(mockup, caption=f"Sonuç: {satir['mockup_id']}", use_container_width=True)
+                # Kaydet (Buffer'a)
+                img_byte_arr = io.BytesIO()
+                mockup.save(img_byte_arr, format="PNG")
                 
-                # İndirme butonu
-                buf = io.BytesIO()
-                mockup.save(buf, format="PNG")
-                st.download_button(f"{satir['mockup_id']} İndir", buf.getvalue(), f"{satir['mockup_id']}.png", "image/png")
+                # Zip'e ekle
+                zip_file.writestr(f"{satir['mockup_id']}_cikti.png", img_byte_arr.getvalue())
+                
+                # Drive'a Yükle (İsteğe bağlı: 'CIKTI_KLASOR_ID' kısmına Drive klasör ID'nizi girin)
+                # drive_service.files().create(media_body=io.BytesIO(img_byte_arr.getvalue()), 
+                #                             body={'name': f"{satir['mockup_id']}_cikti.png", 'parents': ['KLASOR_ID']}).execute()
+
+                st.write(f"✅ {satir['mockup_id']} hazırlandı.")
+                st.image(mockup, caption=satir['mockup_id'], width=300) # Daha küçük görseller
+
+    # 3 & 4. Toplu İndirme
+    st.download_button("Tümünü ZIP Olarak İndir", zip_buffer.getvalue(), "mockuplar.zip", "application/zip")
