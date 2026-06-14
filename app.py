@@ -53,8 +53,8 @@ if yuklenen_tasarim and st.button("Üretime Başla"):
                 zip_file.writestr(f"{satir['mockup_id']}_cikti.png", img_byte_arr.getvalue())
                 
                 # Drive'a Yükle (İsteğe bağlı: 'CIKTI_KLASOR_ID' kısmına Drive klasör ID'nizi girin)
-                # drive_service.files().create(media_body=io.BytesIO(img_byte_arr.getvalue()), 
-                #                             body={'name': f"{satir['mockup_id']}_cikti.png", 'parents': ['KLASOR_ID']}).execute()
+                drive_service.files().create(media_body=io.BytesIO(img_byte_arr.getvalue()), 
+                                             body={'name': f"{satir['mockup_id']}_cikti.png", 'parents': ['1u43nbgsfcXoMGkbWAYYxdd9Yw4bUsZOz']}).execute()
 
                 st.write(f"✅ {satir['mockup_id']} hazırlandı.")
                 st.image(mockup, caption=satir['mockup_id'], width=300) # Daha küçük görseller
