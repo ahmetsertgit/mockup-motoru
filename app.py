@@ -53,7 +53,7 @@ if yuklenen_tasarim and st.button("Üretime Başla"):
                 # Zip'e ekle
                 zip_file.writestr(f"{satir['mockup_id']}_cikti.png", img_byte_arr.getvalue())
 
-                                try:
+                try:
                     media = MediaIoBaseUpload(io.BytesIO(img_byte_arr.getvalue()), mimetype='image/png')
                     drive_service.files().create(
                         body={
