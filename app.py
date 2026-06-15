@@ -40,14 +40,39 @@ if 'token' not in st.session_state:
         st.rerun()
 
 # --- ANA UYGULAMA ---
+# --- ANA UYGULAMA ---
 else:
     st.title("👕 Otomatik Mockup Üretim Hattı")
     
-    # Kullanıcı yetkilerini başlat
-    user_creds = Credentials(token=st.session_state.token['access_token'])
+    # Token verisini güvenli şekilde çek (Kütüphane versiyonu farklılıklarını tolere eder)
+    token_verisi = st.session_state.token
+    gecerli_token = None
+    
+    if isinstance(token_verisi, dict):
+        if "access_token" in token_verisi:
+            gecerli_token = token_verisi["access_token"]
+        elif "token" in token_verisi and isinstance(token_verisi["token"], dict):
+            gecerli_token = token_verisi["token"].get("access_token")
+        elif "token" in token_verisi and isinstance(token_verisi["token"], str):
+            gecerli_token = token_verisi["token"]
+            
+    # Eğer token hala bulunamadıysa sistemi sıfırlama butonu çıkar
+    if not gecerli_token:
+        st.error("Yetki verisi (Token) okunamadı. Lütfen aşağıdaki butona basarak önbelleği temizleyin ve yeniden giriş yapın.")
+        if st.button("Sistemi Sıfırla ve Yeniden Başlat"):
+            del st.session_state.token
+            st.rerun()
+        st.stop()
+        
+    # Güvenli token ile kullanıcı yetkilerini başlat
+    user_creds = Credentials(token=gecerli_token)
     drive_service = build('drive', 'v3', credentials=user_creds)
     sheets_client = gspread.authorize(user_creds)
     
+    st.sidebar.success("✅ Google Hesabınız Aktif")
+    if st.sidebar.button("Çıkış Yap / Önbelleği Temizle"):
+        del st.session_state.token
+        st.rerun()
     st.sidebar.success("✅ Google Hesabınız Aktif")
     if st.sidebar.button("Çıkış Yap"):
         del st.session_state.token
