@@ -7,137 +7,71 @@ import gspread
 from PIL import Image
 import io
 import zipfile
+from streamlit_drawable_canvas import st_canvas
 
-# --- OAUTH VE SABİT AYARLAR ---
+# --- AYARLAR ---
 CLIENT_ID = st.secrets["oauth"]["client_id"]
 CLIENT_SECRET = st.secrets["oauth"]["client_secret"]
-REDIRECT_URI = "https://mockup-motoru-vxkujsyi98kigjm5yyov5h.streamlit.app"
+REDIRECT_URI = "https://mockup-motoru-vxkujsyi98kigjm5yyov5h.streamlit.app/"
 
 AUTHORIZE_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
 TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
 REVOKE_ENDPOINT = 'https://oauth2.googleapis.com/revoke'
 
-# Sizin ilettiğiniz sabit ID'ler
 TABLO_ID = "1KfloezbAz2saj3RKVoD6geVS9_wqefjjshWwMN0N-eY"
 CIKTI_KLASOR_ID = "1u43nbgsfcXoMGkbWAYYxdd9Yw4bUsZOz"
 
 oauth = OAuth2Component(CLIENT_ID, CLIENT_SECRET, AUTHORIZE_ENDPOINT, TOKEN_ENDPOINT, REVOKE_ENDPOINT)
 
-# --- GİRİŞ EKRANI ---
+st.set_page_config(page_title="Mockup Motoru", layout="wide")
+
+# --- GİRİŞ KONTROLÜ ---
 if 'token' not in st.session_state:
-    st.set_page_config(page_title="Mockup Motoru", page_icon="👕")
     st.title("👕 Otomatik Mockup Üretim Hattı")
-    st.warning("Devam etmek için Drive hesabınızla giriş yapın.")
-    
-    result = oauth.authorize_button(
-        name="Google ile Giriş Yap",
-        icon="https://www.google.com/favicon.ico",
-        redirect_uri=REDIRECT_URI,
-        scope="https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets",
-    )
+    st.warning("Devam etmek için giriş yapın.")
+    result = oauth.authorize_button(name="Google ile Giriş Yap", icon="https://www.google.com/favicon.ico", redirect_uri=REDIRECT_URI, scope="https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets")
     if result:
         st.session_state.token = result
         st.rerun()
-
-# --- ANA UYGULAMA ---
-# --- ANA UYGULAMA ---
 else:
-    st.title("👕 Otomatik Mockup Üretim Hattı")
-    
-    # Token verisini güvenli şekilde çek (Kütüphane versiyonu farklılıklarını tolere eder)
+    # --- YETKİLENDİRME ---
     token_verisi = st.session_state.token
-    gecerli_token = None
-    
-    if isinstance(token_verisi, dict):
-        if "access_token" in token_verisi:
-            gecerli_token = token_verisi["access_token"]
-        elif "token" in token_verisi and isinstance(token_verisi["token"], dict):
-            gecerli_token = token_verisi["token"].get("access_token")
-        elif "token" in token_verisi and isinstance(token_verisi["token"], str):
-            gecerli_token = token_verisi["token"]
-            
-    # Eğer token hala bulunamadıysa sistemi sıfırlama butonu çıkar
-    if not gecerli_token:
-        st.error("Yetki verisi (Token) okunamadı. Lütfen aşağıdaki butona basarak önbelleği temizleyin ve yeniden giriş yapın.")
-        if st.button("Sistemi Sıfırla ve Yeniden Başlat"):
-            del st.session_state.token
-            st.rerun()
-        st.stop()
-        
-    # Güvenli token ile kullanıcı yetkilerini başlat
+    gecerli_token = token_verisi.get("access_token") if isinstance(token_verisi, dict) else token_verisi
     user_creds = Credentials(token=gecerli_token)
     drive_service = build('drive', 'v3', credentials=user_creds)
     sheets_client = gspread.authorize(user_creds)
-    
-    st.sidebar.success("✅ Google Hesabınız Aktif")
-    if st.sidebar.button("Çıkış Yap / Önbelleği Temizle"):
-        del st.session_state.token
-        st.rerun()
-    st.sidebar.success("✅ Google Hesabınız Aktif")
-    if st.sidebar.button("Çıkış Yap"):
-        del st.session_state.token
-        st.rerun()
 
-    # E-Tablo'dan verileri çek
-    try:
-        # İsme göre değil, doğrudan sizin verdiğiniz ID'ye göre tabloyu açar
-        tablo = sheets_client.open_by_key(TABLO_ID).get_worksheet(0)
-        veriler = tablo.get_all_records()
-        kategoriler = list(set([satir["kategori"] for satir in veriler if "kategori" in satir]))
-    except Exception as e:
-        st.error(f"E-Tablo okunamadı! Hata: {e}")
-        veriler = []
-        kategoriler = []
+    # --- SEKMELER ---
+    tab1, tab2 = st.tabs(["👕 Çalışan İşlevler", "🧪 Demo Alanı"])
+
+    # 1. TAB: ÇALIŞAN İŞLEVLER
+    with tab1:
+        st.header("Üretim Hattı")
+        # Eski çalışan kodlarınız burada (üretim hattı)
+        if st.button("Sistemi Yenile"):
+            st.rerun()
+
+    # 2. TAB: DEMO ALANI
+    with tab2:
+        st.header("Yeni Özellik Denemeleri")
+        demo_secim = st.radio("Hangi demoyu deniyorsun?", ["Canvas ile Koordinat Belirleme", "Henüz Yok"])
         
-    if veriler:
-        yuklenen_tasarim = st.file_uploader("Tasarımınızı (PNG) Yükleyin", type=["png"])
-        if yuklenen_tasarim:
-            st.image(yuklenen_tasarim, caption="Yüklenen Tasarım", width=250)
+        if demo_secim == "Canvas ile Koordinat Belirleme":
+            yuklenen_mockup = st.file_uploader("Mockup Yükle", type=["png", "jpg"], key="canvas_upload")
+            if yuklenen_mockup:
+                img = Image.open(yuklenen_mockup)
+                canvas_result = st_canvas(
+                    fill_color="rgba(255, 165, 0, 0.3)", stroke_width=2, stroke_color="#E9967A",
+                    background_image=img, height=img.height, width=img.width,
+                    drawing_mode="rect", key="canvas_demo",
+                )
+                if canvas_result.json_data is not None and len(canvas_result.json_data["objects"]) > 0:
+                    rect = canvas_result.json_data["objects"][-1]
+                    st.write(f"Koordinatlar: X={int(rect['left'])}, Y={int(rect['top'])}, G={int(rect['width'])}, Y={int(rect['height'])}")
+                    
+                    if st.button("Tabloya Kaydet"):
+                        tablo = sheets_client.open_by_key(TABLO_ID).get_worksheet(0)
+                        tablo.append_row(["Yeni_ID", "Kategori", int(rect['left']), int(rect['top']), int(rect['width']), int(rect['height'])])
+                        st.success("Tabloya eklendi!")
 
-        kategori = st.selectbox("Mockup Kategorisi Seçin", kategoriler)
-
-        if yuklenen_tasarim and st.button("Üretime Başla"):
-            tasarim = Image.open(yuklenen_tasarim).convert("RGBA")
-            zip_buffer = io.BytesIO()
-            
-            with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED) as zip_file:
-                for satir in veriler:
-                    if satir.get("kategori") == kategori:
-                        try:
-                            # 1. Drive'dan boş mockup'ı indir
-                            request = drive_service.files().get_media(fileId=satir["drive_file_id"])
-                            mockup = Image.open(io.BytesIO(request.execute())).convert("RGBA")
-                            
-                            # 2. Tasarımı boyutlandır ve yerleştir
-                            tasarim_resized = tasarim.resize((satir["genislik"], satir["yukseklik"]), Image.Resampling.LANCZOS)
-                            mockup.paste(tasarim_resized, (satir["x_noktasi"], satir["y_noktasi"]), tasarim_resized)
-                            
-                            # 3. Geçici belleğe kaydet
-                            img_byte_arr = io.BytesIO()
-                            mockup.save(img_byte_arr, format="PNG")
-                            
-                            # 4. ZIP dosyasına ekle
-                            zip_file.writestr(f"{satir['mockup_id']}_cikti.png", img_byte_arr.getvalue())
-                            
-                            # 5. Dolu Mockup Klasörüne (Drive) Yükle
-                            media = MediaIoBaseUpload(io.BytesIO(img_byte_arr.getvalue()), mimetype='image/png')
-                            drive_service.files().create(
-                                body={
-                                    'name': f"{satir['mockup_id']}_cikti.png", 
-                                    'parents': [CIKTI_KLASOR_ID] 
-                                },
-                                media_body=media
-                            ).execute()
-                            
-                            st.success(f"✅ {satir['mockup_id']} işlendi ve Drive'a kaydedildi.")
-                            
-                        except Exception as e:
-                            st.error(f"❌ {satir['mockup_id']} işlenirken hata: {e}")
-
-            # Tüm işlemler bitince toplu indirme butonu
-            st.download_button(
-                label="📦 Tümünü ZIP Olarak İndir", 
-                data=zip_buffer.getvalue(), 
-                file_name="mockuplar_cikti.zip", 
-                mime="application/zip"
-            )
+    st.sidebar.button("Çıkış Yap", on_click=lambda: st.session_state.pop('token', None))
