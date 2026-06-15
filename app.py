@@ -16,7 +16,7 @@ if 'token' not in st.session_state:
     result = oauth.authorize_button(
         name="Google ile Giriş Yap",
         icon="https://www.google.com/favicon.ico",
-        redirect_uri="https://mockup-motoru.streamlit.app/",
+        REDIRECT_URI = "https://mockup-motoru-vxkujsyi98kigjm5yyov5h.streamlit.app/"
         scope="https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets",
     )
     if result:
