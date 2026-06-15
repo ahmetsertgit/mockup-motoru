@@ -8,6 +8,9 @@ from PIL import Image
 import io
 import zipfile
 from streamlit_drawable_canvas import st_canvas
+import base64
+import io
+
 
 # --- AYARLAR ---
 CLIENT_ID = st.secrets["oauth"]["client_id"]
@@ -61,8 +64,7 @@ else:
             # --- Demo Alanı İçinde ---
 
 
-import base64
-import io
+
 
 # ... (Kodun en üstüne ekleyebilirsin veya demo alanı içine)
 def image_to_base64(img):
