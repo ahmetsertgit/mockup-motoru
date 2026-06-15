@@ -16,7 +16,7 @@ TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
 REVOKE_ENDPOINT = 'https://oauth2.googleapis.com/revoke'
 
 # DİKKAT: Buradaki link ile Google Cloud paneline yazdığınız link BİREBİR aynı olmalı
-REDIRECT_URI = "https://mockup-motoru-vxkujsyi98kigjm5yyov5h.streamlit.app/"
+REDIRECT_URI = "https://mockup-motoru-vxkujsyi98kigjm5yyov5h.streamlit.app"
 
 oauth = OAuth2Component(CLIENT_ID, CLIENT_SECRET, AUTHORIZE_ENDPOINT, TOKEN_ENDPOINT, REVOKE_ENDPOINT)
 
