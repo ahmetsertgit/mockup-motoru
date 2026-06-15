@@ -50,7 +50,7 @@ else:
         # Eski çalışan kodlarınız burada (üretim hattı)
         if st.button("Sistemi Yenile"):
             st.rerun()
-
+   
     # 2. TAB: DEMO ALANI
     with tab2:
         st.header("Yeni Özellik Denemeleri")
@@ -59,22 +59,40 @@ else:
         if demo_secim == "Canvas ile Koordinat Belirleme":
             yuklenen_mockup = st.file_uploader("Mockup Yükle", type=["png", "jpg"], key="canvas_upload")
             # --- Demo Alanı İçinde ---
+
+
+import base64
+import io
+
+# ... (Kodun en üstüne ekleyebilirsin veya demo alanı içine)
+def image_to_base64(img):
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    return f"data:image/png;base64,{img_str}"
+
+# --- Demo Alanı İçinde ---
 if yuklenen_mockup:
-    # 1. Resmi geçici bir dosyaya kaydet
     img = Image.open(yuklenen_mockup)
-    img.save("temp_bg.png") # Resmi diske yaz
     
-    # 2. Canvas'a dosya yolu (string) olarak ver
+    # Görseli base64 formatına çeviriyoruz
+    b64_img = image_to_base64(img)
+    
     canvas_result = st_canvas(
-        fill_color="rgba(255, 165, 0, 0.3)",
-        stroke_width=2,
+        fill_color="rgba(255, 165, 0, 0.3)", 
+        stroke_width=2, 
         stroke_color="#E9967A",
-        background_image=Image.open("temp_bg.png"), # Veya sadece "temp_bg.png"
-        height=img.height,
+        background_image=b64_img, # Artık objeyi değil, string'i gönderiyoruz
+        height=img.height, 
         width=img.width,
-        drawing_mode="rect",
+        drawing_mode="rect", 
         key="canvas_demo",
     )
+
+
+
+
+
                 if canvas_result.json_data is not None and len(canvas_result.json_data["objects"]) > 0:
                     rect = canvas_result.json_data["objects"][-1]
                     st.write(f"Koordinatlar: X={int(rect['left'])}, Y={int(rect['top'])}, G={int(rect['width'])}, Y={int(rect['height'])}")
