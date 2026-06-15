@@ -58,7 +58,7 @@ if yuklenen_tasarim and st.button("Üretime Başla"):
                     drive_service.files().create(
                         body={
                             'name': f"{satir['mockup_id']}_cikti.png", 
-                            'parents': ['1u43nbgsfcXoMGkbWAYYxdd9Yw4bUsZOz']
+                            'parents': ['166qsAkccZsGClU6r6OJcOAeszrmnvX41']
                         },
                         media_body=media
                     ).execute()
