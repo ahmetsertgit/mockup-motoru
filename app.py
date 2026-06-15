@@ -3,8 +3,7 @@ from streamlit_oauth import OAuth2Component
 import os
 
 # Google OAuth Bilgileri
-CLIENT_ID = "10797203916-9rgb1dcd06b7n7lignarru01u2o9s2vk.apps.googleusercontent.com"
-CLIENT_SECRET = "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"
+st.secrets["oauth"]["client_id"]
 AUTHORIZE_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
 TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token'
 REVOKE_ENDPOINT = 'https://oauth2.googleapis.com/revoke'
