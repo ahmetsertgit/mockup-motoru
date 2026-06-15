@@ -58,13 +58,23 @@ else:
         
         if demo_secim == "Canvas ile Koordinat Belirleme":
             yuklenen_mockup = st.file_uploader("Mockup Yükle", type=["png", "jpg"], key="canvas_upload")
-            if yuklenen_mockup:
-                img = Image.open(yuklenen_mockup)
-                canvas_result = st_canvas(
-                    fill_color="rgba(255, 165, 0, 0.3)", stroke_width=2, stroke_color="#E9967A",
-                    background_image=img, height=img.height, width=img.width,
-                    drawing_mode="rect", key="canvas_demo",
-                )
+            # --- Demo Alanı İçinde ---
+if yuklenen_mockup:
+    # 1. Resmi geçici bir dosyaya kaydet
+    img = Image.open(yuklenen_mockup)
+    img.save("temp_bg.png") # Resmi diske yaz
+    
+    # 2. Canvas'a dosya yolu (string) olarak ver
+    canvas_result = st_canvas(
+        fill_color="rgba(255, 165, 0, 0.3)",
+        stroke_width=2,
+        stroke_color="#E9967A",
+        background_image=Image.open("temp_bg.png"), # Veya sadece "temp_bg.png"
+        height=img.height,
+        width=img.width,
+        drawing_mode="rect",
+        key="canvas_demo",
+    )
                 if canvas_result.json_data is not None and len(canvas_result.json_data["objects"]) > 0:
                     rect = canvas_result.json_data["objects"][-1]
                     st.write(f"Koordinatlar: X={int(rect['left'])}, Y={int(rect['top'])}, G={int(rect['width'])}, Y={int(rect['height'])}")
