@@ -95,12 +95,12 @@ def calistir():
             st.markdown("**Ekran Önizleme Pikselleri (Kırpıcı Boyutu):**")
             
             m_col1, m_col2 = st.columns(2)
-            x_son = m_col1.number_input("Kırpıcı X", value=st.session_state.coords["x"], step=1, key="input_x")
-            y_son = m_col2.number_input("Kırpıcı Y", value=st.session_state.coords["y"], step=1, key="input_y")
+            x_son = m_col1.number_input("Kırpıcı X", value=box_coords['left'], step=1, key="input_x")
+            y_son = m_col2.number_input("Kırpıcı Y", value=box_coords['top'], step=1, key="input_y")
             
             m_col3, m_col4 = st.columns(2)
-            w_son = m_col3.number_input("Kırpıcı Genişlik", value=st.session_state.coords["w"], step=1, key="input_w")
-            h_son = m_col4.number_input("Kırpıcı Yükseklik", value=st.session_state.coords["h"], step=1, key="input_h")
+            w_son = m_col3.number_input("Kırpıcı Genişlik", value=box_coords['width'], step=1, key="input_w")
+            h_son = m_col4.number_input("Kırpıcı Yükseklik", value=box_coords['height'], step=1, key="input_h")
             
             # Kutulardan elle müdahale edilirse hafızayı güncelle ve çizimi zorla
             if (x_son != st.session_state.coords["x"] or 
