@@ -28,8 +28,7 @@ def calistir():
         # --- YAN YANA DÜZEN ---
         col_sol_gorsel, col_sag_bilgi = st.columns([65, 35])
         
-        # Kod akışında önce sağ kolonu dolduruyoruz ki 'aspect_ratio' girdisi alınarak
-        # sol taraftaki st_cropper aracına kilit olarak beslenebilsin.
+        # Sağ sütun üst kısım: En/Boy kilit girişi
         with col_sag_bilgi:
             ratio_input = st.text_input("🔒 En : Boy Oranı Kilidi (Örn: 15:17 veya serbest çizim için boş bırakın)", value="15:17")
             
@@ -47,7 +46,7 @@ def calistir():
             
             st.markdown("---")
         
-        # Sol kolonda cropper aracı çalışır (Maksimum 500px yükseklik kuralı korunuyor)
+        # Sol sütun: Görsel kırpma alanı
         with col_sol_gorsel:
             box_coords = st_cropper(
                 cropper_gorseli, 
@@ -57,7 +56,7 @@ def calistir():
                 return_type='box'
             )
         
-        # Sağ kolona geri dönüp koordinat çıktılarını oran kutusunun altına ekliyoruz
+        # Sağ sütun alt kısım: Değiştirilebilir Piksel Kutuları ve Çıktı
         with col_sag_bilgi:
             if box_coords:
                 x_orj = int(box_coords['left'] / olcek_orani)
@@ -65,22 +64,23 @@ def calistir():
                 w_orj = int(box_coords['width'] / olcek_orani)
                 h_orj = int(box_coords['height'] / olcek_orani)
                 
-                # Doğrudan kopyalanabilir kod bloğu
-                st.code(
-                    f"x_noktasi: {x_orj}\n"
-                    f"y_noktasi: {y_orj}\n"
-                    f"genislik: {w_orj}\n"
-                    f"yukseklik: {h_orj}"
-                )
-                
-                st.markdown("---")
                 st.markdown("**Orijinal Çözünürlük Pikselleri:**")
                 
-                # Sağ panel metrik gösterimi
+                # Değerleri elle değiştirebilmen için input kutularına çevrildi
                 m_col1, m_col2 = st.columns(2)
-                m_col1.metric("x_noktasi (X)", x_orj)
-                m_col2.metric("y_noktasi (Y)", y_orj)
+                x_son = m_col1.number_input("x_noktasi (X)", value=x_orj, step=1)
+                y_son = m_col2.number_input("y_noktasi (Y)", value=y_orj, step=1)
                 
                 m_col3, m_col4 = st.columns(2)
-                m_col3.metric("genislik (G)", w_orj)
-                m_col4.metric("yukseklik (H)", h_orj)
+                w_son = m_col3.number_input("genislik (G)", value=w_orj, step=1)
+                h_son = m_col4.number_input("yukseklik (H)", value=h_orj, step=1)
+                
+                st.markdown("---")
+                
+                # E-tabloya kopyalanacak alan, üstteki kutulardan girilen son değerleri alır
+                st.code(
+                    f"x_noktasi: {x_son}\n"
+                    f"y_noktasi: {y_son}\n"
+                    f"genislik: {w_son}\n"
+                    f"yukseklik: {h_son}"
+                )
