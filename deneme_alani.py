@@ -7,9 +7,15 @@ def calistir():
     st.header("📐 Mockup Baskı Yerleşimi")
     st.markdown("---")
     
-    # --- 1. KIRPICI TABANLI SAF HAFIZA (Değerler doğrudan kırpıcı pikselidir) ---
+    # --- 1. SAF HAFIZA BAŞLANGICI ---
     if 'coords' not in st.session_state:
         st.session_state.coords = {"x": 50, "y": 50, "w": 200, "h": 200}
+    # Kutuların kendi iç hafızalarını da ilk başta senkronize başlatıyoruz
+    if 'input_x' not in st.session_state:
+        st.session_state["input_x"] = 50
+        st.session_state["input_y"] = 50
+        st.session_state["input_w"] = 200
+        st.session_state["input_h"] = 200
     if 'cropper_version' not in st.session_state:
         st.session_state.cropper_version = 0
 
@@ -20,25 +26,20 @@ def calistir():
         ref_img = Image.open(referans_mockup)
         orj_genislik, orj_yukseklik = ref_img.size
         
-        # --- DİNAMİK ÖLÇEKLENDİRME VE YUVARLAMA ---
+        # --- DİNAMİK ÖLÇEKLENDİRME ---
         HEDEF_YUKSEKLIK = 500
-        
-        # Ölçek oranını orijinal boyuta dönmek için çarpan olarak kurguluyoruz
         olcek_orani = orj_yukseklik / HEDEF_YUKSEKLIK
         
-        # yeni_w değerini kesin olarak tamsayıya yuvarlıyoruz
         yeni_w = int(round(orj_genislik / olcek_orani))
         yeni_h = HEDEF_YUKSEKLIK
         
-        # Görseli kırpıcı boyutuna tam oturtup arka plan katmanı yapıyoruz
         cropper_gorseli = ref_img.resize((yeni_w, yeni_h), Image.Resampling.LANCZOS)
         
         # --- YAN YANA DÜZEN ---
         col_sol_gorsel, col_sag_bilgi = st.columns([65, 35])
         
-        # Sağ sütun üst kısım: En/Boy kilit girişi
         with col_sag_bilgi:
-            ratio_input = st.text_input("🔒 En : Boy Oranı Kilidi (Örn: 15:17 veya serbest çizim için boş bırakın)", value="15:17")
+            ratio_input = st.text_input("🔒 En : Boy Oranı Kilidi (Örn: 15:17 veya serbest için boş bırakın)", value="15:17")
             
             aspect_ratio = None
             if ratio_input and ":" in ratio_input:
@@ -50,18 +51,17 @@ def calistir():
                         aspect_ratio = (w_ratio, h_ratio)
                         st.caption(f"🎯 Oran **{ratio_input}** olarak kilitlendi.")
                 except ValueError:
-                    st.error("❌ Geçersiz format! Lütfen '15:17' şeklinde girin.")
+                    st.error("❌ Geçersiz format!")
             
             st.markdown("---")
 
-        # Hafızadaki kırpıcı piksellerini doğrudan çizime gönderiyoruz (Hesaplama yok)
+        # Kırpıcıya güncel koordinatları gönderiyoruz
         xl = st.session_state.coords["x"]
         xr = st.session_state.coords["x"] + st.session_state.coords["w"]
         yt = st.session_state.coords["y"]
         yb = st.session_state.coords["y"] + st.session_state.coords["h"]
         default_coords = (xl, xr, yt, yb)
         
-        # Sol sütun: Görsel kırpma alanı
         with col_sol_gorsel:
             box_coords = st_cropper(
                 cropper_gorseli, 
@@ -74,9 +74,8 @@ def calistir():
                 should_resize_image=False
             )
         
-        # --- [MUTLAK TAM SAYI KORUMASI] FAREDEN GELEN DEĞERLERİ KESİN OLARAK INT YAP ---
+        # --- [CRITICAL FIX] FAREDEN GELEN VERİYİ KAYDET (RERUN YOK!) ---
         if box_coords:
-            # Fareden gelebilecek float (ondalıklı) değerleri hemen burada tam sayıya (int) çeviriyoruz
             b_x = int(round(box_coords['left']))
             b_y = int(round(box_coords['top']))
             b_w = int(round(box_coords['width']))
@@ -87,21 +86,19 @@ def calistir():
                 b_w != st.session_state.coords["w"] or 
                 b_h != st.session_state.coords["h"]):
                 
-                # 1. Ana koordinat hafızasını güncelle (Artık kesinlikle int)
+                # Sadece değerleri eşitliyoruz, rerun YAPMIYORUZ.
+                # Böylece fare sürüklenirken kendi kendine büyüme döngüsü tetiklenmiyor.
                 st.session_state.coords["x"] = b_x
                 st.session_state.coords["y"] = b_y
                 st.session_state.coords["w"] = b_w
                 st.session_state.coords["h"] = b_h                   
                 
-                # 2. Metin kutularının hafızasını güncelle (Artık kesinlikle int)
                 st.session_state["input_x"] = b_x
                 st.session_state["input_y"] = b_y
                 st.session_state["input_w"] = b_w
                 st.session_state["input_h"] = b_h
-                
-                st.rerun()
         
-        # Sağ sütun alt kısım: Kırpıcı Boyutundaki Sayı Giriş Kutuları
+        # --- SAYI GİRİŞ KUTULARI ---
         with col_sag_bilgi:
             st.markdown("**Ekran Önizleme Pikselleri (Kırpıcı Boyutu):**")
             
@@ -113,7 +110,7 @@ def calistir():
             w_son = m_col3.number_input("Kırpıcı Genişlik", value=st.session_state.coords["w"], step=1, key="input_w")
             h_son = m_col4.number_input("Kırpıcı Yükseklik", value=st.session_state.coords["h"], step=1, key="input_h")
             
-            # --- KUTULARDAN ELLE GİRİLEN DEĞİŞİKLİKLERİ YAKALA ---
+            # --- KLAVYEDEN ELLE DEĞİŞİKLİK YAPILIRSA TETİKLE ---
             if (x_son != st.session_state.coords["x"] or 
                 y_son != st.session_state.coords["y"] or 
                 w_son != st.session_state.coords["w"] or 
@@ -124,12 +121,13 @@ def calistir():
                 st.session_state.coords["w"] = w_son
                 st.session_state.coords["h"] = h_son
                 
+                # Sadece klavyeden müdahale gelirse kırpıcıyı yeni konuma ışınlamak için sürüm arttırıp yeniliyoruz
                 st.session_state.cropper_version += 1
                 st.rerun()
             
             st.markdown("---")
             
-            # --- 3. SON ADIM: GERÇEK BOYUTLARA ÖLÇEKLENDİRME VE YUVARLAMA ---
+            # --- SON ADIM: GERÇEK BOYUTLARA ÖLÇEKLENDİRME ---
             orj_x = int(round(st.session_state.coords["x"] * olcek_orani))
             orj_y = int(round(st.session_state.coords["y"] * olcek_orani))
             orj_w = int(round(st.session_state.coords["w"] * olcek_orani))
