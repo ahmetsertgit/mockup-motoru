@@ -7,9 +7,9 @@ def calistir():
     st.header("📐 Mockup Baskı Yerleşimi")
     st.markdown("---")
     
-    # --- 1. KESİNTİSİZ SENKRONİZASYON HAFIZASI ---
+    # --- 1. KIRPICI TABANLI SAF HAFIZA (Değerler doğrudan kırpıcı pikselidir) ---
     if 'coords' not in st.session_state:
-        st.session_state.coords = {"x": 105, "y": 157, "w": 323, "h": 366}
+        st.session_state.coords = {"x": 50, "y": 50, "w": 200, "h": 200}
     if 'cropper_version' not in st.session_state:
         st.session_state.cropper_version = 0
 
@@ -20,16 +20,18 @@ def calistir():
         ref_img = Image.open(referans_mockup)
         orj_genislik, orj_yukseklik = ref_img.size
         
-        # --- DİNAMİK ÖLÇEKLENDİRME MANTIĞI ---
+        # --- DİNAMİK ÖLÇEKLENDİRME VE YUVARLAMA ---
         HEDEF_YUKSEKLIK = 500
-        if orj_yukseklik > HEDEF_YUKSEKLIK:
-            olcek_orani = HEDEF_YUKSEKLIK / orj_yukseklik
-            yeni_w = int(orj_genislik * olcek_orani)
-            yeni_h = HEDEF_YUKSEKLIK
-            cropper_gorseli = ref_img.resize((yeni_w, yeni_h), Image.Resampling.LANCZOS)
-        else:
-            olcek_orani = 1.0
-            cropper_gorseli = ref_img
+        
+        # Ölçek oranını orijinal boyuta dönmek için çarpan olarak kurguluyoruz
+        olcek_orani = orj_yukseklik / HEDEF_YUKSEKLIK
+        
+        # yeni_w değerini kesin olarak tamsayıya yuvarlıyoruz
+        yeni_w = int(round(orj_genislik / olcek_orani))
+        yeni_h = HEDEF_YUKSEKLIK
+        
+        # Görseli kırpıcı boyutuna tam oturtup arka plan katmanı yapıyoruz
+        cropper_gorseli = ref_img.resize((yeni_w, yeni_h), Image.Resampling.LANCZOS)
         
         # --- YAN YANA DÜZEN ---
         col_sol_gorsel, col_sag_bilgi = st.columns([65, 35])
@@ -52,15 +54,16 @@ def calistir():
             
             st.markdown("---")
 
-        # Hafızadaki orijinal piksel durumunu ekrandaki önizleme ölçeğine çevir
-        xl = int(st.session_state.coords["x"] * olcek_orani)
-        xr = int((st.session_state.coords["x"] + st.session_state.coords["w"]) * olcek_orani)
-        yt = int(st.session_state.coords["y"] * olcek_orani)
-        yb = int((st.session_state.coords["y"] + st.session_state.coords["h"]) * olcek_orani)
+        # Hafızadaki kırpıcı piksellerini doğrudan çizime gönderiyoruz (Hesaplama yok)
+        xl = st.session_state.coords["x"]
+        xr = st.session_state.coords["x"] + st.session_state.coords["w"]
+        yt = st.session_state.coords["y"]
+        yb = st.session_state.coords["y"] + st.session_state.coords["h"]
         default_coords = (xl, xr, yt, yb)
         
         # Sol sütun: Görsel kırpma alanı
         with col_sol_gorsel:
+            # should_resize_image=False ile görseli ve şeffaf kırpıcı tuvalini üst üste eşitliyoruz
             box_coords = st_cropper(
                 cropper_gorseli, 
                 realtime_update=True, 
@@ -72,39 +75,31 @@ def calistir():
                 should_resize_image=False
             )
         
-        # [YUVARLAMA KORUMASI] Fareden gelen hareketi analiz et
+        # Fareden gelen ham kırpıcı piksellerini doğrudan hafızaya eşitliyoruz
         if box_coords:
-            # Mevcut hafızadaki değerlerin ekrandaki teorik pikselleri
-            current_xl = int(st.session_state.coords["x"] * olcek_orani)
-            current_yt = int(st.session_state.coords["y"] * olcek_orani)
-            current_wl = int(st.session_state.coords["w"] * olcek_orani)
-            current_hl = int(st.session_state.coords["h"] * olcek_orani)
-            
-            # Eğer fareden gelen değer ekrandaki kareden GERÇEKTEN farklıysa (Fare taşındıysa)
-            if (box_coords['left'] != current_xl or 
-                box_coords['top'] != current_yt or 
-                box_coords['width'] != current_wl or 
-                box_coords['height'] != current_hl):
+            if (box_coords['left'] != st.session_state.coords["x"] or 
+                box_coords['top'] != st.session_state.coords["y"] or 
+                box_coords['width'] != st.session_state.coords["w"] or 
+                box_coords['height'] != st.session_state.coords["h"]):
                 
-                # Sadece bu durumda fare koordinatını ana hafızaya kaydet
-                st.session_state.coords["x"] = int(box_coords['left'] / olcek_orani)
-                st.session_state.coords["y"] = int(box_coords['top'] / olcek_orani)
-                st.session_state.coords["w"] = int(box_coords['width'] / olcek_orani)
-                st.session_state.coords["h"] = int(box_coords['height'] / olcek_orani)
+                st.session_state.coords["x"] = box_coords['left']
+                st.session_state.coords["y"] = box_coords['top']
+                st.session_state.coords["w"] = box_coords['width']
+                st.session_state.coords["h"] = box_coords['height']
         
-        # Sağ sütun alt kısım: Sayı Giriş Kutuları
+        # Sağ sütun alt kısım: Kırpıcı Boyutundaki Sayı Giriş Kutuları
         with col_sag_bilgi:
-            st.markdown("**Orijinal Çözünürlük Pikselleri:**")
+            st.markdown("**Ekran Önizleme Pikselleri (Kırpıcı Boyutu):**")
             
             m_col1, m_col2 = st.columns(2)
-            x_son = m_col1.number_input("x_noktasi (X)", value=st.session_state.coords["x"], step=1, key="input_x")
-            y_son = m_col2.number_input("y_noktasi (Y)", value=st.session_state.coords["y"], step=1, key="input_y")
+            x_son = m_col1.number_input("Kırpıcı X", value=st.session_state.coords["x"], step=1, key="input_x")
+            y_son = m_col2.number_input("Kırpıcı Y", value=st.session_state.coords["y"], step=1, key="input_y")
             
             m_col3, m_col4 = st.columns(2)
-            w_son = m_col3.number_input("genislik (G)", value=st.session_state.coords["w"], step=1, key="input_w")
-            h_son = m_col4.number_input("yukseklik (H)", value=st.session_state.coords["h"], step=1, key="input_h")
+            w_son = m_col3.number_input("Kırpıcı Genişlik", value=st.session_state.coords["w"], step=1, key="input_w")
+            h_son = m_col4.number_input("Kırpıcı Yükseklik", value=st.session_state.coords["h"], step=1, key="input_h")
             
-            # Eğer kullanıcı kutulardan bir sayıyı ELLE değiştirdiyse tetikle
+            # Kutulardan elle müdahale edilirse hafızayı güncelle ve çizimi zorla
             if (x_son != st.session_state.coords["x"] or 
                 y_son != st.session_state.coords["y"] or 
                 w_son != st.session_state.coords["w"] or 
@@ -114,16 +109,21 @@ def calistir():
                 st.session_state.coords["y"] = y_son
                 st.session_state.coords["w"] = w_son
                 st.session_state.coords["h"] = h_son
-                # Kırpıcıyı yeni konuma ışınlamak için sürüm değiştir ve sayfayı güvenli tetikle
                 st.session_state.cropper_version += 1
                 st.rerun()
             
             st.markdown("---")
             
-            # Kopyalama alanı
+            # --- 3. SON ADIM: GERÇEK BOYUTLARA ÖLÇEKLENDİRME VE YUVARLAMA ---
+            orj_x = int(round(st.session_state.coords["x"] * olcek_orani))
+            orj_y = int(round(st.session_state.coords["y"] * olcek_orani))
+            orj_w = int(round(st.session_state.coords["w"] * olcek_orani))
+            orj_h = int(round(st.session_state.coords["h"] * olcek_orani))
+            
+            st.markdown("**Orijinal Çözünürlük Çıktısı:**")
             st.code(
-                f"x_noktasi: {st.session_state.coords['x']}\n"
-                f"y_noktasi: {st.session_state.coords['y']}\n"
-                f"genislik: {st.session_state.coords['w']}\n"
-                f"yukseklik: {st.session_state.coords['h']}"
+                f"x_noktasi: {orj_x}\n"
+                f"y_noktasi: {orj_y}\n"
+                f"genislik: {orj_w}\n"
+                f"yukseklik: {orj_h}"
             )
