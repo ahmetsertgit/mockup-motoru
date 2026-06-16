@@ -41,7 +41,6 @@ def manual_update(olcek_orani, tetikleyen_kutu):
     mw_int = int(round(mw))
     mh_int = int(round(mh))
     
-    # Yeni manuel değerleri referans olarak kaydet
     st.session_state.cur_x_w_h = {"x": mx_int, "y": my_int, "w": mw_int, "h": mh_int}
     st.session_state.manual_coords = (mx_int, mx_int + mw_int, my_int, my_int + mh_int)
     st.session_state.cropper_version += 1
@@ -50,7 +49,6 @@ def calistir():
     st.header("📐 Mockup Baskı Yerleşimi")
     st.markdown("---")
     
-    # --- [BAŞLANGIÇ AYARLARI VE STATE İLKLENDİRME] ---
     BASLANGIC_W = 150
     BASLANGIC_H = 170
     BASLANGIC_X = 50
@@ -68,7 +66,6 @@ def calistir():
     if 'ratio_str' not in st.session_state:
         st.session_state.ratio_str = "15:17"
 
-    # --- [GÖRSEL YÜKLEME] ---
     referans_mockup = st.file_uploader("Boş Mockup Yükle", type=["png", "jpg"], key="cropper_upload")
     
     if referans_mockup:
@@ -126,8 +123,53 @@ def calistir():
                 should_resize_image=False
             )
         
-        # --- [TOLERANS (DEADZONE) MANTIĞI] ---
         if box_coords:
             bx = int(round(box_coords['left']))
             by = int(round(box_coords['top']))
-            bw = int(
+            bw = int(round(box_coords['width']))
+            bh = int(round(box_coords['height']))
+            
+            son_w = st.session_state.cur_x_w_h["w"]
+            son_h = st.session_state.cur_x_w_h["h"]
+            son_x = st.session_state.cur_x_w_h["x"]
+            son_y = st.session_state.cur_x_w_h["y"]
+            
+            if bx != son_x or by != son_y or bw != son_w or bh != son_h:
+                
+                size_changed = abs(bw - son_w) > 10 or abs(bh - son_h) > 10
+                
+                st.session_state.val_x = int(round(bx * olcek_orani))
+                st.session_state.val_y = int(round(by * olcek_orani))
+                st.session_state.cur_x_w_h["x"] = bx
+                st.session_state.cur_x_w_h["y"] = by
+                
+                if size_changed:
+                    st.session_state.val_w = int(round(bw * olcek_orani))
+                    st.session_state.val_h = int(round(bh * olcek_orani))
+                    st.session_state.cur_x_w_h["w"] = bw
+                    st.session_state.cur_x_w_h["h"] = bh
+        
+        with col_sag_bilgi:
+            st.markdown("**Orijinal Çözünürlük Pikselleri (Doğrudan Düzenlenebilir):**")
+            
+            m_col1, m_col2 = st.columns(2)
+            m_col1.number_input("Orijinal X", step=1, key="val_x", on_change=manual_update, args=(olcek_orani, "x"))
+            m_col2.number_input("Orijinal Y", step=1, key="val_y", on_change=manual_update, args=(olcek_orani, "y"))
+            
+            m_col3, m_col4 = st.columns(2)
+            m_col3.number_input("Orijinal Genişlik", step=1, key="val_w", on_change=manual_update, args=(olcek_orani, "w"))
+            m_col4.number_input("Orijinal Yükseklik", step=1, key="val_h", on_change=manual_update, args=(olcek_orani, "h"))
+            
+            st.markdown("---")
+            
+            st.markdown("**Nihai Çıktı Değerleri:**")
+            st.code(
+                f"x_noktasi: {st.session_state.val_x}\n"
+                f"y_noktasi: {st.session_state.val_y}\n"
+                f"genislik: {st.session_state.val_w}\n"
+                f"yukseklik: {st.session_state.val_h}"
+            )
+
+if __name__ == "__main__":
+    st.set_page_config(layout="wide")
+    calistir()
