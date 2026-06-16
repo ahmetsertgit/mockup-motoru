@@ -20,49 +20,55 @@ REVOKE_ENDPOINT = 'https://oauth2.googleapis.com/revoke'
 
 oauth = OAuth2Component(CLIENT_ID, CLIENT_SECRET, AUTHORIZE_ENDPOINT, TOKEN_ENDPOINT, REVOKE_ENDPOINT)
 
-if 'token' not in st.session_state:
-    st.title("👕 Otomatik Mockup Üretim Hattı")
-    st.warning("Sisteme erişmek için Google ile giriş yapın.")
-    result = oauth.authorize_button(
-        name="Google ile Giriş Yap",
-        icon="https://www.google.com/favicon.ico",
-        redirect_uri=REDIRECT_URI,
-        scope="https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets",
-    )
-    if result:
-        st.session_state.token = result
-        st.rerun()
-else:
-    # Token işleme
-    token_verisi = st.session_state.token
-    gecerli_token = None
-    if isinstance(token_verisi, dict):
-        gecerli_token = token_verisi.get("access_token", token_verisi.get("token", {}).get("access_token") if isinstance(token_verisi.get("token"), dict) else token_verisi.get("token"))
+# YAN MENÜ (SIDEBAR) - Modül Seçimi
+# Varsayılan (ilk açılan) alan "Deneme Alanı" olarak ayarlandı
+secim = st.sidebar.radio("Çalışma Alanı Seçin:", ["Deneme Alanı", "Üretim Hattı"])
+
+# SEÇİME GÖRE İŞLEM YÖNETİMİ
+if secim == "Deneme Alanı":
+    # Google girişi GEREKTİRMEYEN alan doğrudan açılır
+    deneme_alani.calistir()
+
+elif secim == "Üretim Hattı":
+    # Sadece bu sekme seçildiğinde Google yetkisi aranır
+    if 'token' not in st.session_state:
+        st.title("👕 Otomatik Mockup Üretim Hattı")
+        st.warning("Bu üretim alanını kullanmak için Drive hesabınızla giriş yapmanız gerekiyor.")
+        
+        result = oauth.authorize_button(
+            name="Google ile Giriş Yap",
+            icon="https://www.google.com/favicon.ico",
+            redirect_uri=REDIRECT_URI,
+            scope="https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets",
+        )
+        if result:
+            st.session_state.token = result
+            st.rerun()
             
-    if not gecerli_token:
-        st.error("Oturum süresi doldu veya token geçersiz.")
-        if st.button("Yeniden Giriş Yap"):
+    else:
+        # Token okuma ve doğrulama
+        token_verisi = st.session_state.token
+        gecerli_token = None
+        if isinstance(token_verisi, dict):
+            gecerli_token = token_verisi.get("access_token", token_verisi.get("token", {}).get("access_token") if isinstance(token_verisi.get("token"), dict) else token_verisi.get("token"))
+                
+        if not gecerli_token:
+            st.error("Oturum süresi doldu veya token geçersiz.")
+            if st.button("Yeniden Giriş Yap"):
+                del st.session_state.token
+                st.rerun()
+            st.stop()
+            
+        # Servisleri Başlat
+        user_creds = Credentials(token=gecerli_token)
+        drive_service = build('drive', 'v3', credentials=user_creds)
+        sheets_client = gspread.authorize(user_creds)
+        
+        st.sidebar.success("✅ Google Hesabı Bağlı")
+        st.sidebar.markdown("---")
+        if st.sidebar.button("Güvenli Çıkış"):
             del st.session_state.token
             st.rerun()
-        st.stop()
-        
-    # Servisleri Başlat
-    user_creds = Credentials(token=gecerli_token)
-    drive_service = build('drive', 'v3', credentials=user_creds)
-    sheets_client = gspread.authorize(user_creds)
-    
-    # YAN MENÜ (SIDEBAR) - Modül Seçimi
-    st.sidebar.success("✅ Google Hesabı Bağlı")
-    
-    secim = st.sidebar.radio("Çalışma Alanı Seçin:", ["Üretim Hattı", "Deneme Alanı"])
-    
-    st.sidebar.markdown("---")
-    if st.sidebar.button("Güvenli Çıkış"):
-        del st.session_state.token
-        st.rerun()
 
-    # SEÇİME GÖRE İLGİLİ DOSYAYI ÇALIŞTIR
-    if secim == "Üretim Hattı":
+        # Yetkiler tamamsa asıl üretim hattını çalıştır
         uretim_hatti.calistir(drive_service, sheets_client)
-    elif secim == "Deneme Alanı":
-        deneme_alani.calistir()
