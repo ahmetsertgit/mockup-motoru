@@ -86,6 +86,9 @@ def calistir():
                 st.session_state.coords["y"] = box_coords['top']
                 st.session_state.coords["w"] = box_coords['width']
                 st.session_state.coords["h"] = box_coords['height']
+                    
+                st.session_state.cropper_version += 1
+                st.rerun()
         
         # Sağ sütun alt kısım: Kırpıcı Boyutundaki Sayı Giriş Kutuları
         with col_sag_bilgi:
