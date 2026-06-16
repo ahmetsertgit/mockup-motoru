@@ -7,13 +7,28 @@ def calistir():
     st.header("📐 Mockup Baskı Yerleşimi")
     st.markdown("---")
     
-    # Hafıza (Session State) Tanımlamaları - Sayıların fare tarafından ezilmesini önler
-    if 'prev_mouse_coords' not in st.session_state:
-        st.session_state.prev_mouse_coords = None
+    # --- 1. ÇİFT YÖNLÜ SENKRONİZASYON HAFIZA YÖNETİMİ ---
     if 'coords' not in st.session_state:
-        st.session_state.coords = {"x": 0, "y": 0, "w": 100, "h": 100}
-    
-    # 1. GÖRSEL YÜKLEME
+        st.session_state.coords = {"x": 105, "y": 157, "w": 323, "h": 366}
+    if 'cropper_version' not in st.session_state:
+        st.session_state.cropper_version = 0
+
+    # Sayı kutularının başlangıç değerlerini hafıza ile eşleme
+    if 'num_x' not in st.session_state: st.session_state.num_x = st.session_state.coords["x"]
+    if 'num_y' not in st.session_state: st.session_state.num_y = st.session_state.coords["y"]
+    if 'num_w' not in st.session_state: st.session_state.num_w = st.session_state.coords["w"]
+    if 'num_h' not in st.session_state: st.session_state.num_h = st.session_state.coords["h"]
+
+    # Kullanıcı kutulardan birine elle sayı girdiğinde çalışacak fonksiyon (Callback)
+    def on_input_change():
+        st.session_state.coords["x"] = st.session_state.num_x
+        st.session_state.coords["y"] = st.session_state.num_y
+        st.session_state.coords["w"] = st.session_state.num_w
+        st.session_state.coords["h"] = st.session_state.num_h
+        # Elle sayı girildiğinde cropper bileşenini tarayıcıda yeniden çizilmeye (re-mount) zorlar
+        st.session_state.cropper_version += 1
+
+    # --- 2. GÖRSEL YÜKLEME ---
     referans_mockup = st.file_uploader("Boş Mockup Yükle", type=["png", "jpg"], key="cropper_upload")
     
     if referans_mockup:
@@ -51,6 +66,13 @@ def calistir():
                     st.error("❌ Geçersiz format! Lütfen '15:17' şeklinde girin.")
             
             st.markdown("---")
+
+        # Hafızadaki orijinal piksel koordinatlarını ekran ölçeğine çevirip cropper'a besliyoruz
+        xl = int(st.session_state.coords["x"] * olcek_orani)
+        xr = int((st.session_state.coords["x"] + st.session_state.coords["w"]) * olcek_orani)
+        yt = int(st.session_state.coords["y"] * olcek_orani)
+        yb = int((st.session_state.coords["y"] + st.session_state.coords["h"]) * olcek_orani)
+        default_coords = (xl, xr, yt, yb)
         
         # Sol sütun: Görsel kırpma alanı
         with col_sol_gorsel:
@@ -59,46 +81,55 @@ def calistir():
                 realtime_update=True, 
                 box_color='blue', 
                 aspect_ratio=aspect_ratio, 
-                return_type='box'
+                return_type='box',
+                default_coords=default_coords, # Kutulardan girilen değeri ekrana basar
+                key=f"cropper_{st.session_state.cropper_version}", # Sürüm değiştikçe görseli tetikler
+                should_resize_image=False
             )
         
-        # Akıllı Senkronizasyon Bloğu
+        # Eğer kullanıcı fareyle sürükleme yaptıysa kutuları sessizce güncelle
         if box_coords:
-            current_mouse = (box_coords['left'], box_coords['top'], box_coords['width'], box_coords['height'])
+            x_orj = int(box_coords['left'] / olcek_orani)
+            y_orj = int(box_coords['top'] / olcek_orani)
+            w_orj = int(box_coords['width'] / olcek_orani)
+            h_orj = int(box_coords['height'] / olcek_orani)
             
-            # Eğer kullanıcı fareyle yeni bir yer seçtiyse hafızayı fareye göre güncelle
-            if current_mouse != st.session_state.prev_mouse_coords:
-                st.session_state.coords["x"] = int(box_coords['left'] / olcek_orani)
-                st.session_state.coords["y"] = int(box_coords['top'] / olcek_orani)
-                st.session_state.coords["w"] = int(box_coords['width'] / olcek_orani)
-                st.session_state.coords["h"] = int(box_coords['height'] / olcek_orani)
-                st.session_state.prev_mouse_coords = current_mouse
+            # Fare hareketi hafızadan farklıysa, son durumu güncelle
+            if (x_orj != st.session_state.coords["x"] or 
+                y_orj != st.session_state.coords["y"] or 
+                w_orj != st.session_state.coords["w"] or 
+                h_orj != st.session_state.coords["h"]):
+                
+                st.session_state.coords["x"] = x_orj
+                st.session_state.coords["y"] = y_orj
+                st.session_state.coords["w"] = w_orj
+                st.session_state.coords["h"] = h_orj
+                
+                # Sayı girdi kutularının içindeki rakamları da farenin yerine eşitle
+                st.session_state.num_x = x_orj
+                st.session_state.num_y = y_orj
+                st.session_state.num_w = w_orj
+                st.session_state.num_h = h_orj
         
         # Sağ sütun alt kısım: Değiştirilebilir Piksel Kutuları ve Çıktı
         with col_sag_bilgi:
             st.markdown("**Orijinal Çözünürlük Pikselleri:**")
             
-            # Girdi kutuları değerleri artık bağımsız hafıza hücresinden okuyor
+            # Girdi kutuları artık tetikleyici (on_change) fonksiyonumuza bağlı
             m_col1, m_col2 = st.columns(2)
-            x_son = m_col1.number_input("x_noktasi (X)", value=st.session_state.coords["x"], step=1)
-            y_son = m_col2.number_input("y_noktasi (Y)", value=st.session_state.coords["y"], step=1)
+            m_col1.number_input("x_noktasi (X)", key="num_x", on_change=on_input_change, step=1)
+            m_col2.number_input("y_noktasi (Y)", key="num_y", on_change=on_input_change, step=1)
             
             m_col3, m_col4 = st.columns(2)
-            w_son = m_col3.number_input("genislik (G)", value=st.session_state.coords["w"], step=1)
-            h_son = m_col4.number_input("yukseklik (H)", value=st.session_state.coords["h"], step=1)
-            
-            # Kutularda elinle yaptığın değişiklikleri hafızaya geri işle
-            st.session_state.coords["x"] = x_son
-            st.session_state.coords["y"] = y_son
-            st.session_state.coords["w"] = w_son
-            st.session_state.coords["h"] = h_son
+            m_col3.number_input("genislik (G)", key="num_w", on_change=on_input_change, step=1)
+            m_col4.number_input("yukseklik (H)", key="num_h", on_change=on_input_change, step=1)
             
             st.markdown("---")
             
-            # Kopyalanacak alan, üstteki kutulara yazdığın en son nihai pikselleri basar
+            # Kopyalanacak alan, her iki kaynaktan (Klavye veya Fare) süzülen en net güncel halini gösterir
             st.code(
-                f"x_noktasi: {x_son}\n"
-                f"y_noktasi: {y_son}\n"
-                f"genislik: {w_son}\n"
-                f"yukseklik: {h_son}"
+                f"x_noktasi: {st.session_state.coords['x']}\n"
+                f"y_noktasi: {st.session_state.coords['y']}\n"
+                f"genislik: {st.session_state.coords['w']}\n"
+                f"yukseklik: {st.session_state.coords['h']}"
             )
