@@ -213,11 +213,6 @@ def calistir():
             # Backend tarafına (baskı şablonu oluşturucuya) gönderilecek nihai temiz pikseller
             st.markdown("**Nihai Çıktı Değerleri:**")
             st.code(
-                # calistir() fonksiyonunun en sonuna, st.code'un altına ekle:
-                st.sidebar.markdown("### 🕵️‍♂️ Canlı Hafıza Takibi")
-                st.sidebar.write("Ekran Kutusu (cur_x_w_h):", st.session_state.get('cur_x_w_h'))
-                st.sidebar.write("Orijinal Genişlik (val_w):", st.session_state.get('val_w'))
-                st.sidebar.write("Orijinal Yükseklik (val_h):", st.session_state.get('val_h'))
 
 
                 
