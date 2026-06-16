@@ -5,29 +5,24 @@ from streamlit_cropper import st_cropper
 
 def manual_update(olcek_orani):
     """Kutulara doğrudan ORİJİNAL piksel değerleri girildiğinde tetiklenir."""
-    # 1. Giriş kutularındaki orijinal çözünürlük değerlerini oku
     orj_x = st.session_state.val_x
     orj_y = st.session_state.val_y
     orj_w = st.session_state.val_w
     orj_h = st.session_state.val_h
     
-    # 2. Kırpıcının boyutunu hesaplarken değerleri tekrar ölçek oranına BÖL
     mw = orj_w / olcek_orani
     mh = orj_h / olcek_orani
     mx = orj_x / olcek_orani
     my = orj_y / olcek_orani
     
-    # En-boy oranı kilidi aktifse, hangi kutunun değiştiğine bakıp diğerini oranla hesapla
     ratio_str = st.session_state.get('ratio_str', '15:17')
     if ratio_str and ":" in ratio_str:
         try:
             parts = ratio_str.split(":")
             w_r, h_r = float(parts[0]), float(parts[1])
             
-            # Genişlik mi değişti yoksa yükseklik mi? (Ekran pikselleri üzerinden kıyaslama)
             if abs(mw - st.session_state.cur_x_w_h["w"]) > 0.01:
                 mh = mw * (h_r / w_r)
-                # Karşı kutunun orijinal piksel değerini de güncelle ki kutu içi anında değişsin
                 st.session_state.val_h = int(round(mh * olcek_orani))
             elif abs(mh - st.session_state.cur_x_w_h["h"]) > 0.01:
                 mw = mh * (w_r / h_r)
@@ -35,13 +30,11 @@ def manual_update(olcek_orani):
         except ValueError:
             pass
     
-    # Kırpıcının ihtiyaç duyduğu ekran koordinatlarını tam sayıya yuvarla
     mx_int = int(round(mx))
     my_int = int(round(my))
     mw_int = int(round(mw))
     mh_int = int(round(mh))
     
-    # Hafızayı ve kırpıcıyı yeni konumuna ışınla
     st.session_state.cur_x_w_h = {"x": mx_int, "y": my_int, "w": mw_int, "h": mh_int}
     st.session_state.manual_coords = (mx_int, mx_int + mw_int, my_int, my_int + mh_int)
     st.session_state.cropper_version += 1
@@ -50,36 +43,47 @@ def calistir():
     st.header("📐 Mockup Baskı Yerleşimi")
     st.markdown("---")
     
-    # --- HAFIZA BAŞLANGIÇ AYARLARI ---
+    BASLANGIC_W = 150
+    BASLANGIC_H = 170
+    BASLANGIC_X = 50
+    BASLANGIC_Y = 50
+    
     if 'manual_coords' not in st.session_state:
-        st.session_state.manual_coords = (50, 250, 50, 250)
+        st.session_state.manual_coords = (BASLANGIC_X, BASLANGIC_X + BASLANGIC_W, BASLANGIC_Y, BASLANGIC_Y + BASLANGIC_H)
     if 'cropper_version' not in st.session_state:
         st.session_state.cropper_version = 0
     if 'cur_x_w_h' not in st.session_state:
-        st.session_state.cur_x_w_h = {"x": 50, "y": 50, "w": 200, "h": 200}
+        st.session_state.cur_x_w_h = {"x": BASLANGIC_X, "y": BASLANGIC_Y, "w": BASLANGIC_W, "h": BASLANGIC_H}
     if 'ratio_str' not in st.session_state:
         st.session_state.ratio_str = "15:17"
 
-    # --- GÖRSEL YÜKLEME ---
     referans_mockup = st.file_uploader("Boş Mockup Yükle", type=["png", "jpg"], key="cropper_upload")
     
     if referans_mockup:
-        ref_img = Image.open(referans_mockup)
-        orj_genislik, orj_yukseklik = ref_img.size
+        # --- ÇÖZÜM: GÖRSELİ SADECE İLK YÜKLEMEDE İŞLE VE HAFIZAYA AL ---
+        # Dosya id'si değiştiyse (yeni dosya yüklendiyse) işlemi yap
+        if 'uploaded_file_id' not in st.session_state or st.session_state.uploaded_file_id != referans_mockup.file_id:
+            ref_img = Image.open(referans_mockup)
+            orj_genislik, orj_yukseklik = ref_img.size
+            
+            HEDEF_YUKSEKLIK = 500
+            olcek_orani = orj_yukseklik / HEDEF_YUKSEKLIK
+            yeni_w = int(round(orj_genislik / olcek_orani))
+            yeni_h = HEDEF_YUKSEKLIK
+            
+            # Görseli sadece BİR KERE resize yapıyoruz ve hafızaya sabitliyoruz
+            st.session_state.cropper_gorseli = ref_img.resize((yeni_w, yeni_h), Image.Resampling.LANCZOS)
+            st.session_state.olcek_orani = olcek_orani
+            st.session_state.uploaded_file_id = referans_mockup.file_id
         
-        # --- ÖLÇEKLENDİRME ESASLARI ---
-        HEDEF_YUKSEKLIK = 500
-        olcek_orani = orj_yukseklik / HEDEF_YUKSEKLIK
-        yeni_w = int(round(orj_genislik / olcek_orani))
-        yeni_h = HEDEF_YUKSEKLIK
+        # Her fare hareketinde yenisini üretmek yerine hafızadaki sabit objeyi kullanıyoruz
+        cropper_gorseli = st.session_state.cropper_gorseli
+        olcek_orani = st.session_state.olcek_orani
         
-        cropper_gorseli = ref_img.resize((yeni_w, yeni_h), Image.Resampling.LANCZOS)
-        
-        # Giriş kutularının ilk açılış değerlerini orijinal piksel cinsinden ata (Ekran Değeri * Ölçek Oranı)
-        if 'val_x' not in st.session_state: st.session_state.val_x = int(round(50 * olcek_orani))
-        if 'val_y' not in st.session_state: st.session_state.val_y = int(round(50 * olcek_orani))
-        if 'val_w' not in st.session_state: st.session_state.val_w = int(round(200 * olcek_orani))
-        if 'val_h' not in st.session_state: st.session_state.val_h = int(round(200 * olcek_orani))
+        if 'val_x' not in st.session_state: st.session_state.val_x = int(round(BASLANGIC_X * olcek_orani))
+        if 'val_y' not in st.session_state: st.session_state.val_y = int(round(BASLANGIC_Y * olcek_orani))
+        if 'val_w' not in st.session_state: st.session_state.val_w = int(round(BASLANGIC_W * olcek_orani))
+        if 'val_h' not in st.session_state: st.session_state.val_h = int(round(BASLANGIC_H * olcek_orani))
         
         col_sol_gorsel, col_sag_bilgi = st.columns([65, 35])
         
@@ -102,7 +106,6 @@ def calistir():
             
             st.markdown("---")
 
-        # Sol Sütun: Kırpıcı Alanı
         with col_sol_gorsel:
             box_coords = st_cropper(
                 cropper_gorseli, 
@@ -115,14 +118,12 @@ def calistir():
                 should_resize_image=False
             )
         
-        # --- FAREDEN GELEN VERİLERİ ORİJİNAL ÇÖZÜNÜRLÜĞE ÇEVİRİP KUTULARA YAZ ---
         if box_coords:
             bx = int(round(box_coords['left']))
             by = int(round(box_coords['top']))
             bw = int(round(box_coords['width']))
             bh = int(round(box_coords['height']))
             
-            # Fare hareket ettiyse tetiklenir
             if (bx != st.session_state.cur_x_w_h["x"] or 
                 by != st.session_state.cur_x_w_h["y"] or 
                 bw != st.session_state.cur_x_w_h["w"] or 
@@ -130,13 +131,11 @@ def calistir():
                 
                 st.session_state.cur_x_w_h = {"x": bx, "y": by, "w": bw, "h": bh}
                 
-                # Sayı kutularının iç değerlerini ölçek oranıyla ÇARPARAK güncelle (Kullanıcının istediği mantık)
                 st.session_state.val_x = int(round(bx * olcek_orani))
                 st.session_state.val_y = int(round(by * olcek_orani))
                 st.session_state.val_w = int(round(bw * olcek_orani))
                 st.session_state.val_h = int(round(bh * olcek_orani))
         
-        # Sağ Sütun: Sayı Giriş Kutuları (Artık Doğrudan Gerçek Çözünürlük Değerleri Gösterilir)
         with col_sag_bilgi:
             st.markdown("**Orijinal Çözünürlük Pikselleri (Doğrudan Düzenlenebilir):**")
             
@@ -150,7 +149,6 @@ def calistir():
             
             st.markdown("---")
             
-            # Kod çıktısını doğrudan session_state.val_w'lardan besliyoruz çünkü onlar zaten nihai orijinal pikselleri tutuyor
             st.markdown("**Nihai Çıktı Değerleri:**")
             st.code(
                 f"x_noktasi: {st.session_state.val_x}\n"
