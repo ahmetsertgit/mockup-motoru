@@ -42,8 +42,10 @@ def manual_update(olcek_orani, tetikleyen_kutu):
     mw_int = int(round(mw))
     mh_int = int(round(mh))
     
-    st.session_state.cur_x_w_h = {"x": mx_int, "y": my_int, "w": mw_int, "h": mh_int}
     st.session_state.manual_coords = (mx_int, mx_int + mw_int, my_int, my_int + mh_int)
+    
+    # 🎯 KRİTİK ADIM: Programatik güncellemeyi başlat ve bileşeni yenile
+    st.session_state.is_programmatic_update = True
     st.session_state.cropper_version += 1
 
 def calistir():
@@ -67,6 +69,10 @@ def calistir():
         
     if 'ratio_str' not in st.session_state:
         st.session_state.ratio_str = "15:17"
+        
+    # Programatik kilit bayrağı ilklendirmesi
+    if 'is_programmatic_update' not in st.session_state:
+        st.session_state.is_programmatic_update = False
 
     # --- [GÖRSEL YÜKLEME] ---
     referans_mockup = st.file_uploader("Boş Mockup Yükle", type=["png", "jpg"], key="cropper_upload")
@@ -114,7 +120,7 @@ def calistir():
             
             st.markdown("---")
 
-        # --- [KIRPICI BİLEŞENİNİN ÇALIŞTIRILMASI] ---
+        # --- [KIRPICI BİLEŞENİN ENTEGRASYONU] ---
         with col_sol_gorsel:
             box_coords = st_cropper(
                 cropper_gorseli, 
@@ -127,36 +133,42 @@ def calistir():
                 should_resize_image=False
             )
         
-        # --- [FARE HAREKETİ VE ANTİ-DRIFT KONTROLÜ] ---
+        # --- [AKILLI SİNYAL VE FARE TAKİP MERKEZİ] ---
         if box_coords:
             bx = int(round(box_coords['left']))
             by = int(round(box_coords['top']))
             bw = int(round(box_coords['width']))
             bh = int(round(box_coords['height']))
             
-            if (bx != st.session_state.cur_x_w_h["x"] or 
-                by != st.session_state.cur_x_w_h["y"] or 
-                bw != st.session_state.cur_x_w_h["w"] or 
-                bh != st.session_state.cur_x_w_h["h"]):
-                
+            # 🛡️ KALKAN 1: Eğer kullanıcı az önce el ile giriş yaptıysa, bileşenin (React)
+            # en-boy oranına göre otomatik düzelttiği İLK ekran piksel değerlerini yakala ve benimse.
+            # Böylece başlangıç gürültüsünden kurtulup tertemiz bir senkronizasyon yakalarız.
+            if st.session_state.get('is_programmatic_update', False):
                 st.session_state.cur_x_w_h = {"x": bx, "y": by, "w": bw, "h": bh}
-                
-                # Konumlar (X ve Y) her zaman anlık fare hareketine göre güncellenir
-                st.session_state.val_x = int(round(bx * olcek_orani))
-                st.session_state.val_y = int(round(by * olcek_orani))
-                
-                # 🔥 BOYUT KORUMA KALKANI:
-                # Şu anki orijinal piksellerin ekranda tam olarak kaç piksele denk gelmesi gerektiğini hesaplıyoruz
-                beklenen_ekran_w = int(round(st.session_state.val_w / olcek_orani))
-                beklenen_ekran_h = int(round(st.session_state.val_h / olcek_orani))
-                
-                # Eğer ekrandan gelen anlık piksel boyutu, beklenen piksele eşit DEĞİLSE
-                # Demek ki kullanıcı sadece taşımıyor, köşelerden tutup yeniden BOYUTLANDIRIYOR.
-                # Sadece bu durumda orijinal val_w ve val_h değerlerini güncelliyoruz.
-                if bw != beklenen_ekran_w:
-                    st.session_state.val_w = int(round(bw * olcek_orani))
-                if bh != beklenen_ekran_h:
-                    st.session_state.val_h = int(round(bh * olcek_orani))
+                st.session_state.is_programmatic_update = False  # Kilidi kaldır, artık fareyi dinleyebilirsin.
+            
+            else:
+                # 🛡️ KALKAN 2: Canlı fare hareketlerini işleme al
+                if (bx != st.session_state.cur_x_w_h["x"] or 
+                    by != st.session_state.cur_x_w_h["y"] or 
+                    bw != st.session_state.cur_x_w_h["w"] or 
+                    bh != st.session_state.cur_x_w_h["h"]):
+                    
+                    # Bileşenin kendi içindeki genişlik veya yükseklik değeri gerçekten değişti mi?
+                    size_changed = (bw != st.session_state.cur_x_w_h["w"] or bh != st.session_state.cur_x_w_h["h"])
+                    
+                    # Son durumu kaydet
+                    st.session_state.cur_x_w_h = {"x": bx, "y": by, "w": bw, "h": bh}
+                    
+                    # Sürükleme esnasında konumları (X ve Y) kayıpsız güncelle
+                    st.session_state.val_x = int(round(bx * olcek_orani))
+                    st.session_state.val_y = int(round(by * olcek_orani))
+                    
+                    # Sadece ve sadece kullanıcı fareyle kenarlardan tutup kutunun BOYUTUNU değiştirdiyse
+                    # orijinal genişlik ve yükseklik değerlerini güncelle. Sadece taşımalarda burayı es geç!
+                    if size_changed:
+                        st.session_state.val_w = int(round(bw * olcek_orani))
+                        st.session_state.val_h = int(round(bh * olcek_orani))
         
         # --- [KULLANICI GİRİŞ ARAYÜZÜ] ---
         with col_sag_bilgi:
@@ -180,4 +192,3 @@ def calistir():
                 f"genislik: {st.session_state.val_w}\n"
                 f"yukseklik: {st.session_state.val_h}"
             )
-            
