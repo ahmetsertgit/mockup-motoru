@@ -4,27 +4,10 @@ from PIL import Image
 from streamlit_cropper import st_cropper
 
 def calistir():
-    # Çalışma alanının adı güncellendi
     st.header("📐 Mockup Baskı Yerleşimi")
-    
-    # 1. EN/BOY ORANI GİRİŞİ
-    ratio_input = st.text_input("🔒 En : Boy Oranı Kilidi (Örn: 15:17 veya serbest çizim için boş bırakın)", value="15:17")
-    
-    aspect_ratio = None
-    if ratio_input and ":" in ratio_input:
-        try:
-            parts = ratio_input.split(":")
-            w_ratio = float(parts[0])
-            h_ratio = float(parts[1])
-            if w_ratio > 0 and h_ratio > 0:
-                aspect_ratio = (w_ratio, h_ratio)
-                st.caption(f"🎯 Oran **{ratio_input}** olarak kilitlendi.")
-        except ValueError:
-            st.error("❌ Geçersiz format! Lütfen '15:17' şeklinde girin.")
-            
     st.markdown("---")
     
-    # 2. GÖRSEL YÜKLEME
+    # 1. GÖRSEL YÜKLEME
     referans_mockup = st.file_uploader("Boş Mockup Yükle", type=["png", "jpg"], key="cropper_upload")
     
     if referans_mockup:
@@ -45,6 +28,26 @@ def calistir():
         # --- YAN YANA DÜZEN ---
         col_sol_gorsel, col_sag_bilgi = st.columns([65, 35])
         
+        # Kod akışında önce sağ kolonu dolduruyoruz ki 'aspect_ratio' girdisi alınarak
+        # sol taraftaki st_cropper aracına kilit olarak beslenebilsin.
+        with col_sag_bilgi:
+            ratio_input = st.text_input("🔒 En : Boy Oranı Kilidi (Örn: 15:17 veya serbest çizim için boş bırakın)", value="15:17")
+            
+            aspect_ratio = None
+            if ratio_input and ":" in ratio_input:
+                try:
+                    parts = ratio_input.split(":")
+                    w_ratio = float(parts[0])
+                    h_ratio = float(parts[1])
+                    if w_ratio > 0 and h_ratio > 0:
+                        aspect_ratio = (w_ratio, h_ratio)
+                        st.caption(f"🎯 Oran **{ratio_input}** olarak kilitlendi.")
+                except ValueError:
+                    st.error("❌ Geçersiz format! Lütfen '15:17' şeklinde girin.")
+            
+            st.markdown("---")
+        
+        # Sol kolonda cropper aracı çalışır (Maksimum 500px yükseklik kuralı korunuyor)
         with col_sol_gorsel:
             box_coords = st_cropper(
                 cropper_gorseli, 
@@ -54,15 +57,15 @@ def calistir():
                 return_type='box'
             )
         
+        # Sağ kolona geri dönüp koordinat çıktılarını oran kutusunun altına ekliyoruz
         with col_sag_bilgi:
             if box_coords:
-                # Ekrandaki küçük görsel koordinatlarını, orijinal büyük görsele oranlıyoruz
                 x_orj = int(box_coords['left'] / olcek_orani)
                 y_orj = int(box_coords['top'] / olcek_orani)
                 w_orj = int(box_coords['width'] / olcek_orani)
                 h_orj = int(box_coords['height'] / olcek_orani)
                 
-                # Sadece doğrudan kopyalanabilir kod bloğu bırakıldı
+                # Doğrudan kopyalanabilir kod bloğu
                 st.code(
                     f"x_noktasi: {x_orj}\n"
                     f"y_noktasi: {y_orj}\n"
