@@ -63,7 +63,6 @@ def calistir():
         
         # Sol sütun: Görsel kırpma alanı
         with col_sol_gorsel:
-            # should_resize_image=False ile görseli ve şeffaf kırpıcı tuvalini üst üste eşitliyoruz
             box_coords = st_cropper(
                 cropper_gorseli, 
                 realtime_update=True, 
@@ -75,19 +74,26 @@ def calistir():
                 should_resize_image=False
             )
         
-        # Fareden gelen ham kırpıcı piksellerini doğrudan hafızaya eşitliyoruz
+        # --- [AKILLI SENKRONİZASYON] FAREDEN GELEN DEĞİŞİKLİKLERİ YAKALA ---
         if box_coords:
             if (box_coords['left'] != st.session_state.coords["x"] or 
                 box_coords['top'] != st.session_state.coords["y"] or 
                 box_coords['width'] != st.session_state.coords["w"] or 
                 box_coords['height'] != st.session_state.coords["h"]):
                 
+                # 1. Ana koordinat hafızasını güncelle
                 st.session_state.coords["x"] = box_coords['left']
                 st.session_state.coords["y"] = box_coords['top']
                 st.session_state.coords["w"] = box_coords['width']
-                st.session_state.coords["h"] = box_coords['height']
+                st.session_state.coords["h"] = box_coords['height']                   
                 
-                st.session_state.cropper_version += 1
+                # 2. Metin kutularının (Widget) kilitli iç hafızasını zorla ezerek güncelle
+                st.session_state["input_x"] = box_coords['left']
+                st.session_state["input_y"] = box_coords['top']
+                st.session_state["input_w"] = box_coords['width']
+                st.session_state["input_h"] = box_coords['height']
+                
+                # Sayfayı tetikle ama kırpıcıyı yok etme (cropper_version AYNI kalıyor)
                 st.rerun()
         
         # Sağ sütun alt kısım: Kırpıcı Boyutundaki Sayı Giriş Kutuları
@@ -95,14 +101,15 @@ def calistir():
             st.markdown("**Ekran Önizleme Pikselleri (Kırpıcı Boyutu):**")
             
             m_col1, m_col2 = st.columns(2)
-            x_son = m_col1.number_input("Kırpıcı X", value=box_coords['left'], step=1, key="input_x")
-            y_son = m_col2.number_input("Kırpıcı Y", value=box_coords['top'], step=1, key="input_y")
+            # Değerleri kutulara doğrudan merkezi hafızadan güvenli bir şekilde bağlıyoruz
+            x_son = m_col1.number_input("Kırpıcı X", value=st.session_state.coords["x"], step=1, key="input_x")
+            y_son = m_col2.number_input("Kırpıcı Y", value=st.session_state.coords["y"], step=1, key="input_y")
             
             m_col3, m_col4 = st.columns(2)
-            w_son = m_col3.number_input("Kırpıcı Genişlik", value=box_coords['width'], step=1, key="input_w")
-            h_son = m_col4.number_input("Kırpıcı Yükseklik", value=box_coords['height'], step=1, key="input_h")
+            w_son = m_col3.number_input("Kırpıcı Genişlik", value=st.session_state.coords["w"], step=1, key="input_w")
+            h_son = m_col4.number_input("Kırpıcı Yükseklik", value=st.session_state.coords["h"], step=1, key="input_h")
             
-            # Kutulardan elle müdahale edilirse hafızayı güncelle ve çizimi zorla
+            # --- [AKILLI SENKRONİZASYON] KUTULARDAN ELLE GİRİLEN DEĞİŞİKLİKLERİ YAKALA ---
             if (x_son != st.session_state.coords["x"] or 
                 y_son != st.session_state.coords["y"] or 
                 w_son != st.session_state.coords["w"] or 
@@ -112,6 +119,8 @@ def calistir():
                 st.session_state.coords["y"] = y_son
                 st.session_state.coords["w"] = w_son
                 st.session_state.coords["h"] = h_son
+                
+                # Sadece klavyeden müdahale gelirse kırpıcı kutusunu ışınlamak için sürüm değiştiriyoruz
                 st.session_state.cropper_version += 1
                 st.rerun()
             
