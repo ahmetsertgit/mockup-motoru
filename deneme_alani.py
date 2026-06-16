@@ -32,42 +32,58 @@ def calistir():
         orj_genislik, orj_yukseklik = ref_img.size
         st.info(f"📋 Yüklenen Görselin Orijinal Boyutu: {orj_genislik} x {orj_yukseklik} piksel")
         
-        # --- YAN YANA DÜZEN (LİKİT KOLONLAR) ---
-        # Sol kolon görsel için (%65 genişlik), Sağ kolon bilgiler için (%35 genişlik)
+        # --- DİNAMİK ÖLÇEKLENDİRME MANTIĞI ---
+        # Görsel yüksekliği 500px'den büyükse, taşmayı önlemek için geçici olarak küçültüyoruz
+        HEDEF_YUKSEKLIK = 500
+        if orj_yukseklik > HEDEF_YUKSEKLIK:
+            olcek_orani = HEDEF_YUKSEKLIK / orj_yukseklik
+            yeni_w = int(orj_genislik * olcek_orani)
+            yeni_h = HEDEF_YUKSEKLIK
+            cropper_gorseli = ref_img.resize((yeni_w, yeni_h), Image.Resampling.LANCZOS)
+        else:
+            olcek_orani = 1.0
+            cropper_gorseli = ref_img
+        
+        # --- YAN YANA DÜZEN ---
         col_sol_gorsel, col_sag_bilgi = st.columns([65, 35])
         
         with col_sol_gorsel:
-            # max_height=500 parametresi ile dikeyde taşmayı tamamen engelledik
+            # Hata veren max_height kaldırıldı, doğrudan optimize edilmiş görsele çalışıyor
             box_coords = st_cropper(
-                ref_img, 
+                cropper_gorseli, 
                 realtime_update=True, 
                 box_color='blue', 
                 aspect_ratio=aspect_ratio, 
-                return_type='box',
-                max_height=500 
+                return_type='box'
             )
         
         with col_sag_bilgi:
             if box_coords:
                 st.success("🎉 Koordinatlar Hesaplandı")
                 
+                # Ekrandaki küçük görsel koordinatlarını, orijinal büyük görsele oranlıyoruz
+                x_orj = int(box_coords['left'] / olcek_orani)
+                y_orj = int(box_coords['top'] / olcek_orani)
+                w_orj = int(box_coords['width'] / olcek_orani)
+                h_orj = int(box_coords['height'] / olcek_orani)
+                
                 # Doğrudan kopyalayıp tabloya yapıştıracağın temiz kod bloğu
                 st.markdown("**E-Tabloya Kopyalamak İçin Değerler:**")
                 st.code(
-                    f"x_noktasi: {int(box_coords['left'])}\n"
-                    f"y_noktasi: {int(box_coords['top'])}\n"
-                    f"genislik: {int(box_coords['width'])}\n"
-                    f"yukseklik: {int(box_coords['height'])}"
+                    f"x_noktasi: {x_orj}\n"
+                    f"y_noktasi: {y_orj}\n"
+                    f"genislik: {w_orj}\n"
+                    f"yukseklik: {h_orj}"
                 )
                 
                 st.markdown("---")
-                st.markdown("**Anlık Piksel Takibi:**")
+                st.markdown("**Orijinal Çözünürlük Pikselleri:**")
                 
-                # Sağ panelde metrikleri 2x2 düzeninde şık bir şekilde listeleme
+                # Sağ panel metrik gösterimi (Gerçek yüksek çözünürlük değerleri)
                 m_col1, m_col2 = st.columns(2)
-                m_col1.metric("x_noktasi (X)", int(box_coords['left']))
-                m_col2.metric("y_noktasi (Y)", int(box_coords['top']))
+                m_col1.metric("x_noktasi (X)", x_orj)
+                m_col2.metric("y_noktasi (Y)", y_orj)
                 
                 m_col3, m_col4 = st.columns(2)
-                m_col3.metric("genislik (G)", int(box_coords['width']))
-                m_col4.metric("yukseklik (H)", int(box_coords['height']))
+                m_col3.metric("genislik (G)", w_orj)
+                m_col4.metric("yukseklik (H)", h_orj)
