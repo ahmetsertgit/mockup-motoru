@@ -1,7 +1,7 @@
-streamlit==1.22.0
+streamlit
 streamlit-oauth
 google-api-python-client
 google-auth-oauthlib
 gspread
 Pillow
-streamlit-drawable-canvas==0.9.3
+streamlit-cropper
