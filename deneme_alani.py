@@ -85,16 +85,7 @@ def calistir():
                 st.session_state.coords["x"] = box_coords['left']
                 st.session_state.coords["y"] = box_coords['top']
                 st.session_state.coords["w"] = box_coords['width']
-                st.session_state.coords["h"] = box_coords['height']
-                st.session_state.coords["x"] = x_son
-                st.session_state.coords["y"] = y_son
-                st.session_state.coords["w"] = w_son
-                st.session_state.coords["h"] = h_son
-
-
-
-
-                    
+                st.session_state.coords["h"] = box_coords['height']                   
                 st.session_state.cropper_version += 1
                 st.rerun()
         
