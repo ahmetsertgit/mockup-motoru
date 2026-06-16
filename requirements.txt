@@ -1,7 +1,7 @@
-streamlit==1.25.0
+streamlit==1.22.0
 streamlit-oauth
 google-api-python-client
 google-auth-oauthlib
 gspread
 Pillow
-streamlit-drawable-canvas
+streamlit-drawable-canvas==0.9.3
