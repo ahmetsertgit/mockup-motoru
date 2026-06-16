@@ -15,6 +15,8 @@ def manual_update(olcek_orani):
     4. Yeni koordinatları 'manual_coords' ve 'cur_x_w_h' içine yaz.
     5. 'cropper_version' değerini artırarak kırpıcı bileşenini (React) DOM'dan tamamen silip temiz bir state ile yeniden oluştur (Re-mount).
     """
+
+    breakpoint()
     # 1. Session State üzerindeki güncel orijinal pikselleri oku
     orj_x = st.session_state.val_x
     orj_y = st.session_state.val_y
@@ -46,14 +48,14 @@ def manual_update(olcek_orani):
                 st.session_state.val_w = int(round(mw * olcek_orani))
         except ValueError:
             pass # Geçersiz oran formatı girildiyse hesaplamayı atla
-    
+    breakpoint()
     # 4. Ekran piksellerini tam sayıya (Integer) yuvarla
     # DİKKAT: int(round()) esnasında yaşanan 0.5 piksellik sapmalar zincirleme büyümeye neden olabilir!
     mx_int = int(round(mx))
     my_int = int(round(my))
     mw_int = int(round(mw))
     mh_int = int(round(mh))
-    
+    breakpoint()
     # 5. Hesaplanan ekran koordinatlarını referans hafızalara kaydet
     st.session_state.cur_x_w_h = {"x": mx_int, "y": my_int, "w": mw_int, "h": mh_int}
     st.session_state.manual_coords = (mx_int, mx_int + mw_int, my_int, my_int + mh_int)
@@ -163,11 +165,14 @@ def calistir():
         
         # --- [FARE HAREKETİ VE GERİ BESLEME (FEEDBACK) DÖNGÜSÜ ANAlİZİ] ---
         if box_coords:
+            breakpoint()
             # Tarayıcı ekranından (JavaScript) gelen anlık kutu konumları (Küçük piksel)
             bx = int(round(box_coords['left']))
             by = int(round(box_coords['top']))
             bw = int(round(box_coords['width']))
             bh = int(round(box_coords['height']))
+
+            breakpoint()
             
             # KÜTÜPHANENİN OLASI SIKIŞMA NOKTASI BURASIDIR:
             # Fare ile sadece KONUM değiştirirken (sürüklerken), JS tarafı Python'a hafif yuvarlanmış değerler gönderir.
@@ -187,7 +192,8 @@ def calistir():
                 st.session_state.val_y = int(round(by * olcek_orani))
                 st.session_state.val_w = int(round(bw * olcek_orani))
                 st.session_state.val_h = int(round(bh * olcek_orani))
-                
+                    
+                breakpoint()
                 # KRİTİK SORU: Fare ile sürükleme esnasında 'st.session_state.manual_coords' değerini de 
                 # (bx, by) değerlerine göre anlık güncellemek gerekir mi, yoksa o değer sabit kaldığı için 
                 # st_cropper her fare hareketinde eski manual_coords ile yeni fare konumu arasında kalıp 
@@ -206,6 +212,7 @@ def calistir():
             m_col3, m_col4 = st.columns(2)
             m_col3.number_input("Orijinal Genişlik", step=1, key="val_w", on_change=manual_update, args=(olcek_orani,))
             m_col4.number_input("Orijinal Yükseklik", step=1, key="val_h", on_change=manual_update, args=(olcek_orani,))
+            breakpoint()
             
             st.markdown("---")
             
