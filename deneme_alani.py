@@ -7,55 +7,43 @@ def manual_update(olcek_orani, tetikleyen_kutu):
     """
     [MANUEL GİRİŞ TETİKLEYİCİSİ]
     Kullanıcı arayüzdeki (UI) sayı kutularına ELLE bir orijinal piksel değeri girdiğinde çalışır.
-    'tetikleyen_kutu' parametresi değişimin hangi kutudan (x, y, w, h) geldiğini doğrudan söyler.
     """
-    # 1. Session State üzerindeki güncel orijinal pikselleri oku
     orj_x = st.session_state.val_x
     orj_y = st.session_state.val_y
     orj_w = st.session_state.val_w
     orj_h = st.session_state.val_h
     
-    # 2. En-Boy Oranı Kilidini kontrol et ve uyarla
     ratio_str = st.session_state.get('ratio_str', '15:17')
     if ratio_str and ":" in ratio_str:
         try:
             parts = ratio_str.split(":")
             w_r, h_r = float(parts[0]), float(parts[1])
             
-            # Değişimi doğrudan tetikleyen kutuya göre hesapla
             if tetikleyen_kutu == "w":
-                # Genişlik elle değiştiyse, yüksekliği orijinal pikseller üzerinden hesapla
                 orj_h = orj_w * (h_r / w_r)
                 st.session_state.val_h = int(round(orj_h))
             elif tetikleyen_kutu == "h":
-                # Yükseklik elle değiştiyse, genişliği orijinal pikseller üzerinden hesapla
                 orj_w = orj_h * (w_r / h_r)
                 st.session_state.val_w = int(round(orj_w))
                 
         except ValueError:
-            pass # Geçersiz oran formatı girildiyse hesaplamayı atla
+            pass
             
-    # Session state'den en güncel (belki az önce üstte değişmiş) değerleri tekrar çekelim
     guncel_w = st.session_state.val_w
     guncel_h = st.session_state.val_h
     
-    # 3. Orijinal pikselleri, ekrandaki küçük görselin piksel karşılıklarına dönüştür
     mw = guncel_w / olcek_orani
     mh = guncel_h / olcek_orani
     mx = orj_x / olcek_orani
     my = orj_y / olcek_orani
     
-    # 4. Ekran piksellerini tam sayıya (Integer) yuvarla
     mx_int = int(round(mx))
     my_int = int(round(my))
     mw_int = int(round(mw))
     mh_int = int(round(mh))
     
-    # 5. Hesaplanan ekran koordinatlarını referans hafızalara kaydet
     st.session_state.cur_x_w_h = {"x": mx_int, "y": my_int, "w": mw_int, "h": mh_int}
     st.session_state.manual_coords = (mx_int, mx_int + mw_int, my_int, my_int + mh_int)
-    
-    # 6. Bileşenin key parametresini değiştirmek için versiyonu artır (Bileşeni hard-resetler)
     st.session_state.cropper_version += 1
 
 def calistir():
@@ -80,7 +68,7 @@ def calistir():
     if 'ratio_str' not in st.session_state:
         st.session_state.ratio_str = "15:17"
 
-    # --- [GÖRSEL YÜKLEME VE CACHE/HAFIZA YÖNETİMİ] ---
+    # --- [GÖRSEL YÜKLEME] ---
     referans_mockup = st.file_uploader("Boş Mockup Yükle", type=["png", "jpg"], key="cropper_upload")
     
     if referans_mockup:
@@ -139,7 +127,7 @@ def calistir():
                 should_resize_image=False
             )
         
-        # --- [FARE HAREKETİ VE GERİ BESLEME (FEEDBACK) DÖNGÜSÜ ANAlİZİ] ---
+        # --- [FARE HAREKETİ VE ANTİ-DRIFT KONTROLÜ] ---
         if box_coords:
             bx = int(round(box_coords['left']))
             by = int(round(box_coords['top']))
@@ -153,17 +141,28 @@ def calistir():
                 
                 st.session_state.cur_x_w_h = {"x": bx, "y": by, "w": bw, "h": bh}
                 
+                # Konumlar (X ve Y) her zaman anlık fare hareketine göre güncellenir
                 st.session_state.val_x = int(round(bx * olcek_orani))
                 st.session_state.val_y = int(round(by * olcek_orani))
-                st.session_state.val_w = int(round(bw * olcek_orani))
-                st.session_state.val_h = int(round(bh * olcek_orani))
+                
+                # 🔥 BOYUT KORUMA KALKANI:
+                # Şu anki orijinal piksellerin ekranda tam olarak kaç piksele denk gelmesi gerektiğini hesaplıyoruz
+                beklenen_ekran_w = int(round(st.session_state.val_w / olcek_orani))
+                beklenen_ekran_h = int(round(st.session_state.val_h / olcek_orani))
+                
+                # Eğer ekrandan gelen anlık piksel boyutu, beklenen piksele eşit DEĞİLSE
+                # Demek ki kullanıcı sadece taşımıyor, köşelerden tutup yeniden BOYUTLANDIRIYOR.
+                # Sadece bu durumda orijinal val_w ve val_h değerlerini güncelliyoruz.
+                if bw != beklenen_ekran_w:
+                    st.session_state.val_w = int(round(bw * olcek_orani))
+                if bh != beklenen_ekran_h:
+                    st.session_state.val_h = int(round(bh * olcek_orani))
         
-        # --- [KULLANICI GİRİŞ ARAYÜZÜ (SAYI KUTULARI)] ---
+        # --- [KULLANICI GİRİŞ ARAYÜZÜ] ---
         with col_sag_bilgi:
             st.markdown("**Orijinal Çözünürlük Pikselleri (Doğrudan Düzenlenebilir):**")
             
             m_col1, m_col2 = st.columns(2)
-            # Args kısmına tetikleyen kutunun kimliğini ("x", "y", "w", "h") gönderiyoruz
             m_col1.number_input("Orijinal X", step=1, key="val_x", on_change=manual_update, args=(olcek_orani, "x"))
             m_col2.number_input("Orijinal Y", step=1, key="val_y", on_change=manual_update, args=(olcek_orani, "y"))
             
@@ -181,3 +180,4 @@ def calistir():
                 f"genislik: {st.session_state.val_w}\n"
                 f"yukseklik: {st.session_state.val_h}"
             )
+            
