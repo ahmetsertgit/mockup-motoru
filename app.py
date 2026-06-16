@@ -5,7 +5,6 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 import gspread
 
-# Alt modülleri içe aktarıyoruz
 import uretim_hatti
 import deneme_alani
 
@@ -20,17 +19,13 @@ REVOKE_ENDPOINT = 'https://oauth2.googleapis.com/revoke'
 
 oauth = OAuth2Component(CLIENT_ID, CLIENT_SECRET, AUTHORIZE_ENDPOINT, TOKEN_ENDPOINT, REVOKE_ENDPOINT)
 
-# YAN MENÜ (SIDEBAR) - Modül Seçimi
-# Varsayılan (ilk açılan) alan "Deneme Alanı" olarak ayarlandı
-secim = st.sidebar.radio("Çalışma Alanı Seçin:", ["Deneme Alanı", "Üretim Hattı"])
+# Menü ismi "Mockup Baskı Yerleşimi" olarak güncellendi
+secim = st.sidebar.radio("Çalışma Alanı Seçin:", ["Mockup Baskı Yerleşimi", "Üretim Hattı"])
 
-# SEÇİME GÖRE İŞLEM YÖNETİMİ
-if secim == "Deneme Alanı":
-    # Google girişi GEREKTİRMEYEN alan doğrudan açılır
+if secim == "Mockup Baskı Yerleşimi":
     deneme_alani.calistir()
 
 elif secim == "Üretim Hattı":
-    # Sadece bu sekme seçildiğinde Google yetkisi aranır
     if 'token' not in st.session_state:
         st.title("👕 Otomatik Mockup Üretim Hattı")
         st.warning("Bu üretim alanını kullanmak için Drive hesabınızla giriş yapmanız gerekiyor.")
@@ -46,7 +41,6 @@ elif secim == "Üretim Hattı":
             st.rerun()
             
     else:
-        # Token okuma ve doğrulama
         token_verisi = st.session_state.token
         gecerli_token = None
         if isinstance(token_verisi, dict):
@@ -59,7 +53,6 @@ elif secim == "Üretim Hattı":
                 st.rerun()
             st.stop()
             
-        # Servisleri Başlat
         user_creds = Credentials(token=gecerli_token)
         drive_service = build('drive', 'v3', credentials=user_creds)
         sheets_client = gspread.authorize(user_creds)
@@ -70,5 +63,4 @@ elif secim == "Üretim Hattı":
             del st.session_state.token
             st.rerun()
 
-        # Yetkiler tamamsa asıl üretim hattını çalıştır
         uretim_hatti.calistir(drive_service, sheets_client)
