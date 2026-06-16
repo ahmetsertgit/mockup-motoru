@@ -7,6 +7,12 @@ def calistir():
     st.header("📐 Mockup Baskı Yerleşimi")
     st.markdown("---")
     
+    # Hafıza (Session State) Tanımlamaları - Sayıların fare tarafından ezilmesini önler
+    if 'prev_mouse_coords' not in st.session_state:
+        st.session_state.prev_mouse_coords = None
+    if 'coords' not in st.session_state:
+        st.session_state.coords = {"x": 0, "y": 0, "w": 100, "h": 100}
+    
     # 1. GÖRSEL YÜKLEME
     referans_mockup = st.file_uploader("Boş Mockup Yükle", type=["png", "jpg"], key="cropper_upload")
     
@@ -56,31 +62,43 @@ def calistir():
                 return_type='box'
             )
         
+        # Akıllı Senkronizasyon Bloğu
+        if box_coords:
+            current_mouse = (box_coords['left'], box_coords['top'], box_coords['width'], box_coords['height'])
+            
+            # Eğer kullanıcı fareyle yeni bir yer seçtiyse hafızayı fareye göre güncelle
+            if current_mouse != st.session_state.prev_mouse_coords:
+                st.session_state.coords["x"] = int(box_coords['left'] / olcek_orani)
+                st.session_state.coords["y"] = int(box_coords['top'] / olcek_orani)
+                st.session_state.coords["w"] = int(box_coords['width'] / olcek_orani)
+                st.session_state.coords["h"] = int(box_coords['height'] / olcek_orani)
+                st.session_state.prev_mouse_coords = current_mouse
+        
         # Sağ sütun alt kısım: Değiştirilebilir Piksel Kutuları ve Çıktı
         with col_sag_bilgi:
-            if box_coords:
-                x_orj = int(box_coords['left'] / olcek_orani)
-                y_orj = int(box_coords['top'] / olcek_orani)
-                w_orj = int(box_coords['width'] / olcek_orani)
-                h_orj = int(box_coords['height'] / olcek_orani)
-                
-                st.markdown("**Orijinal Çözünürlük Pikselleri:**")
-                
-                # Değerleri elle değiştirebilmen için input kutularına çevrildi
-                m_col1, m_col2 = st.columns(2)
-                x_son = m_col1.number_input("x_noktasi (X)", value=x_orj, step=1)
-                y_son = m_col2.number_input("y_noktasi (Y)", value=y_orj, step=1)
-                
-                m_col3, m_col4 = st.columns(2)
-                w_son = m_col3.number_input("genislik (G)", value=w_orj, step=1)
-                h_son = m_col4.number_input("yukseklik (H)", value=h_orj, step=1)
-                
-                st.markdown("---")
-                
-                # E-tabloya kopyalanacak alan, üstteki kutulardan girilen son değerleri alır
-                st.code(
-                    f"x_noktasi: {x_son}\n"
-                    f"y_noktasi: {y_son}\n"
-                    f"genislik: {w_son}\n"
-                    f"yukseklik: {h_son}"
-                )
+            st.markdown("**Orijinal Çözünürlük Pikselleri:**")
+            
+            # Girdi kutuları değerleri artık bağımsız hafıza hücresinden okuyor
+            m_col1, m_col2 = st.columns(2)
+            x_son = m_col1.number_input("x_noktasi (X)", value=st.session_state.coords["x"], step=1)
+            y_son = m_col2.number_input("y_noktasi (Y)", value=st.session_state.coords["y"], step=1)
+            
+            m_col3, m_col4 = st.columns(2)
+            w_son = m_col3.number_input("genislik (G)", value=st.session_state.coords["w"], step=1)
+            h_son = m_col4.number_input("yukseklik (H)", value=st.session_state.coords["h"], step=1)
+            
+            # Kutularda elinle yaptığın değişiklikleri hafızaya geri işle
+            st.session_state.coords["x"] = x_son
+            st.session_state.coords["y"] = y_son
+            st.session_state.coords["w"] = w_son
+            st.session_state.coords["h"] = h_son
+            
+            st.markdown("---")
+            
+            # Kopyalanacak alan, üstteki kutulara yazdığın en son nihai pikselleri basar
+            st.code(
+                f"x_noktasi: {x_son}\n"
+                f"y_noktasi: {y_son}\n"
+                f"genislik: {w_son}\n"
+                f"yukseklik: {h_son}"
+            )
