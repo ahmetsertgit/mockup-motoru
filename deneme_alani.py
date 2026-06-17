@@ -25,7 +25,6 @@ def kaydet_veritabani(sheets_client, mockup_name, kategori, drive_file_id, x, y,
                 break
 
         if bulunan_satir:
-            # Sıralama: mockup_id, mockup_name, kategori, drive_file_id, x_noktasi, y_noktasi, genislik, yukseklik
             guncel_satir_verisi = [[mevcut_mockup_id, mockup_name, kategori, drive_file_id, x, y, w, h]]
             sheet.update(f"A{bulunan_satir}:H{bulunan_satir}", guncel_satir_verisi)
             st.success(f"🔄 '{mockup_name}' güncellendi! (Satır: {bulunan_satir})")
@@ -72,7 +71,25 @@ def manual_update(olcek_orani, tetikleyen_kutu):
     st.session_state.cropper_version += 1
 
 def calistir(drive_service=None, sheets_client=None):
-    # Tam olarak görseldeki ana başlık
+    # --- TEPE BOŞLUĞUNU SIFIRLAYAN CSS ENJEKSİYONU ---
+    st.markdown(
+        """
+        <style>
+            /* Streamlit'in ana gövdedeki tepe boşluğunu yok ediyoruz */
+            .block-container {
+                padding-top: 1rem !important;
+                padding-bottom: 0rem !important;
+            }
+            /* Üst bar boşluğunu minimize ediyoruz */
+            header[data-testid="stHeader"] {
+                height: 1rem !important;
+                background: transparent !important;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
     st.header("📐 Mockup Baskı Yerleşimi (Drive Entegreli)")
     
     if drive_service is None or sheets_client is None:
@@ -81,7 +98,6 @@ def calistir(drive_service=None, sheets_client=None):
 
     BOS_MOCKUP_KLASOR_ID = "1SPParYqyzm1my2hldMacIOy2F-t9no81"
 
-    # Veri Çekme İşlemleri
     try:
         klasor_sorgusu = f"'{BOS_MOCKUP_KLASOR_ID}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
         klasor_sonuclari = drive_service.files().list(q=klasor_sorgusu, fields="files(id, name)").execute()
@@ -96,7 +112,7 @@ def calistir(drive_service=None, sheets_client=None):
 
     klasor_isimleri = {k['name']: k['id'] for k in model_klasorleri}
     
-    # --- YAN YANA İKİ ANA SÜTUN (Sol: Görsel %65, Sağ: Kontroller %35) ---
+    # --- YAN YANA İKİ ANA SÜTUN ---
     col_sol_gorsel, col_sag_bilgi = st.columns([65, 35])
     
     with col_sag_bilgi:
@@ -121,7 +137,6 @@ def calistir(drive_service=None, sheets_client=None):
         secilen_gorsel_adi = st.selectbox("Mockup Görseli Seçin:", list(gorsel_isimleri.keys()))
         secilen_gorsel_id = gorsel_isimleri[secilen_gorsel_id] if secilen_gorsel_adi not in gorsel_isimleri else gorsel_isimleri[secilen_gorsel_adi]
 
-    # --- SESSİON STATE BAŞLANGIÇ DEĞERLERİ ---
     BASLANGIC_W, BASLANGIC_H = 150, 170
     BASLANGIC_X, BASLANGIC_Y = 50, 50
     
@@ -134,7 +149,6 @@ def calistir(drive_service=None, sheets_client=None):
     if 'ratio_str' not in st.session_state:
         st.session_state.ratio_str = "15:17"
 
-    # Görsel Yükleme ve Ölçekleme
     if 'loaded_image_id' not in st.session_state or st.session_state.loaded_image_id != secilen_gorsel_id:
         with col_sol_gorsel:
             with st.spinner('Görsel çekiliyor...'):
@@ -166,7 +180,6 @@ def calistir(drive_service=None, sheets_client=None):
                 st.session_state.cur_x_w_h = {"x": BASLANGIC_X, "y": BASLANGIC_Y, "w": BASLANGIC_W, "h": BASLANGIC_H}
                 st.session_state.cropper_version += 1
 
-    # Oran hesaplama
     ratio_input = st.session_state.get('ratio_str', '15:17')
     aspect_ratio = None
     if ratio_input and ":" in ratio_input:
@@ -178,7 +191,7 @@ def calistir(drive_service=None, sheets_client=None):
         except ValueError:
             pass
 
-    # --- SOL SÜTUN: Sadece Cropper Görsel Alanı ---
+    # --- SOL SÜTUN ---
     with col_sol_gorsel:
         box_coords = st_cropper(
             st.session_state.cropper_gorseli, 
@@ -191,7 +204,6 @@ def calistir(drive_service=None, sheets_client=None):
             should_resize_image=False
         )
     
-    # Kutu koordinatlarını anlık yakala ve state'e yaz (Lag engelleme)
     if box_coords:
         bx = int(round(box_coords['left']))
         by = int(round(box_coords['top']))
@@ -218,9 +230,8 @@ def calistir(drive_service=None, sheets_client=None):
                 st.session_state.cur_x_w_h["w"] = bw
                 st.session_state.cur_x_w_h["h"] = bh
 
-    # --- SAĞ SÜTUN: Buton ve Koordinat Girişleri ---
+    # --- SAĞ SÜTUN ---
     with col_sag_bilgi:
-        # Kırmızı/Primary renkli Kaydet butonu
         if st.button("💾 Konumu Veritabanına Kaydet", type="primary", use_container_width=True):
             kaydet_veritabani(
                 sheets_client, 
