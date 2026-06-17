@@ -68,6 +68,7 @@ def manual_update(olcek_orani, tetikleyen_kutu):
     
     st.session_state.cur_x_w_h = {"x": int(round(mx)), "y": int(round(my)), "w": int(round(mw)), "h": int(round(mh))}
     st.session_state.manual_coords = (int(round(mx)), int(round(mx + mw)), int(round(my)), int(round(my + mh)))
+    st.session_state.just_loaded = True  # Yeniden çizimde sıfırlama korumasını aktif et
     st.session_state.cropper_version += 1
 
 def calistir(drive_service=None, sheets_client=None):
@@ -126,7 +127,6 @@ def calistir(drive_service=None, sheets_client=None):
         for satir in tum_veriler:
             f_id = satir.get('drive_file_id')
             if f_id:
-                # ID bazlı olarak tüm koordinat verilerini hafızaya alıyoruz
                 mevcut_gorsel_verileri[str(f_id)] = {
                     'x': satir.get('x', 0),
                     'y': satir.get('y', 0),
@@ -208,20 +208,17 @@ def calistir(drive_service=None, sheets_client=None):
                 
                 # Güncelleme Kontrolü: Görsel veritabanında var mı?
                 if secilen_gorsel_id in mevcut_gorsel_verileri:
-                    # Tablodan gelen orijinal piksel verilerini yükle
                     v = mevcut_gorsel_verileri[secilen_gorsel_id]
                     st.session_state.val_x = int(v['x'])
                     st.session_state.val_y = int(v['y'])
                     st.session_state.val_w = int(v['w'])
                     st.session_state.val_h = int(v['h'])
                     
-                    # Cropper ekranı (500px yükseklik) için geri ölçekleme yap
                     mx = st.session_state.val_x / olcek_orani
                     my = st.session_state.val_y / olcek_orani
                     mw = st.session_state.val_w / olcek_orani
                     mh = st.session_state.val_h / olcek_orani
                 else:
-                    # Tabloda yoksa temiz varsayılan başlangıç kutusunu oluştur
                     st.session_state.val_x = int(round(BASLANGIC_X * olcek_orani))
                     st.session_state.val_y = int(round(BASLANGIC_Y * olcek_orani))
                     st.session_state.val_w = int(round(BASLANGIC_W * olcek_orani))
@@ -229,9 +226,9 @@ def calistir(drive_service=None, sheets_client=None):
                     
                     mx, my, mw, mh = BASLANGIC_X, BASLANGIC_Y, BASLANGIC_W, BASLANGIC_H
 
-                # Cropper kutu konumlarını ve durum geçmişini eşitle
                 st.session_state.manual_coords = (int(round(mx)), int(round(mx + mw)), int(round(my)), int(round(my + mh)))
                 st.session_state.cur_x_w_h = {"x": int(round(mx)), "y": int(round(my)), "w": int(round(mw)), "h": int(round(mh))}
+                st.session_state.just_loaded = True  # İlk yüklemede sıfırlama korumasını aktif et
                 st.session_state.cropper_version += 1
 
     ratio_input = st.session_state.get('ratio_str', '15:17')
@@ -258,31 +255,38 @@ def calistir(drive_service=None, sheets_client=None):
             should_resize_image=False
         )
     
+    # --- AKILLI SENKRONİZASYON VE KORUMA KALKANI ---
     if box_coords:
-        bx = int(round(box_coords['left']))
-        by = int(round(box_coords['top']))
-        bw = int(round(box_coords['width']))
-        bh = int(round(box_coords['height']))
-        
-        olcek_orani = st.session_state.olcek_orani
-        son_w = st.session_state.cur_x_w_h["w"]
-        son_h = st.session_state.cur_x_w_h["h"]
-        son_x = st.session_state.cur_x_w_h["x"]
-        son_y = st.session_state.cur_x_w_h["y"]
-        
-        if bx != son_x or by != son_y or bw != son_w or bh != son_h:
-            size_changed = abs(bw - son_w) > 10 or abs(bh - son_h) > 10
+        if st.session_state.get('just_loaded', False):
+            # İlk yükleme karesinde cropper'ın sıfır veya bozuk dönmesini engelle, kalkanı indir
+            st.session_state.just_loaded = False
+        else:
+            bx = int(round(box_coords['left']))
+            by = int(round(box_coords['top']))
+            bw = int(round(box_coords['width']))
+            bh = int(round(box_coords['height']))
             
-            st.session_state.val_x = int(round(bx * olcek_orani))
-            st.session_state.val_y = int(round(by * olcek_orani))
-            st.session_state.cur_x_w_h["x"] = bx
-            st.session_state.cur_x_w_h["y"] = by
-            
-            if size_changed:
-                st.session_state.val_w = int(round(bw * olcek_orani))
-                st.session_state.val_h = int(round(bh * olcek_orani))
-                st.session_state.cur_x_w_h["w"] = bw
-                st.session_state.cur_x_w_h["h"] = bh
+            # Sadece geçerli ve canlı bir dörtgen varsa koordinat güncellemesi yap
+            if bw > 0 and bh > 0:
+                olcek_orani = st.session_state.olcek_orani
+                son_w = st.session_state.cur_x_w_h["w"]
+                son_h = st.session_state.cur_x_w_h["h"]
+                son_x = st.session_state.cur_x_w_h["x"]
+                son_y = st.session_state.cur_x_w_h["y"]
+                
+                if bx != son_x or by != son_y or bw != son_w or bh != son_h:
+                    size_changed = abs(bw - son_w) > 5 or abs(bh - son_h) > 5
+                    
+                    st.session_state.val_x = int(round(bx * olcek_orani))
+                    st.session_state.val_y = int(round(by * olcek_orani))
+                    st.session_state.cur_x_w_h["x"] = bx
+                    st.session_state.cur_x_w_h["y"] = by
+                    
+                    if size_changed:
+                        st.session_state.val_w = int(round(bw * olcek_orani))
+                        st.session_state.val_h = int(round(bh * olcek_orani))
+                        st.session_state.cur_x_w_h["w"] = bw
+                        st.session_state.cur_x_w_h["h"] = bh
 
     # --- SAĞ SÜTUN ---
     with col_sag_bilgi:
@@ -341,6 +345,7 @@ def calistir(drive_service=None, sheets_client=None):
         m_col4.number_input("Orijinal Yükseklik", step=1, key="val_h", on_change=manual_update, args=(olcek, "h"))
         
         def ratio_changed():
+            st.session_state.just_loaded = True  # Oran değiştiğinde de sıfırlama korumasını aç
             st.session_state.cropper_version += 1
         st.text_input("🔒 En : Boy Oranı Kilidi", key="ratio_str", on_change=ratio_changed)
 
