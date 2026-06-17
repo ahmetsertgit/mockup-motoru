@@ -110,8 +110,8 @@ def calistir(drive_service=None, sheets_client=None):
 
     klasor_isimleri = {k['name']: k['id'] for k in model_klasorleri}
     
-    # --- YAN YANA İKİ ANA SÜTUN ---
-    col_sol_gorsel, col_sag_bilgi = st.columns([65, 35])
+    # --- YAN YANA İKİ ANA SÜTUN (Sağ tarafı %35'ten %42'ye genişleterek rahatlattık) ---
+    col_sol_gorsel, col_sag_bilgi = st.columns([58, 42])
     
     with col_sag_bilgi:
         secilen_klasor_adi = st.selectbox("T-Shirt Modelini Seçin (Kategori):", list(klasor_isimleri.keys()))
@@ -230,8 +230,8 @@ def calistir(drive_service=None, sheets_client=None):
 
     # --- SAĞ SÜTUN ---
     with col_sag_bilgi:
-        # Buton ve Bildirim Mesajı İçin Yan Yana Alt Sütunlar
-        col_btn, col_msg = st.columns([55, 45])
+        # Butona daha fazla alan tanımak için sütun oranını [62, 38] yaptık
+        col_btn, col_msg = st.columns([62, 38])
         
         with col_btn:
             kaydet_butonu = st.button("💾 Konumu Veritabanına Kaydet", type="primary", use_container_width=True)
@@ -248,10 +248,31 @@ def calistir(drive_service=None, sheets_client=None):
                 st.session_state.val_h
             )
             with col_msg:
+                # Butonu asla ezmeyen, yükseklik odaklı kompakt mini-onay kutuları
                 if basarili:
-                    st.success(sonuc_mesaji)
+                    st.markdown(
+                        f"""
+                        <div style="display: flex; align-items: center; justify-content: center; 
+                                    height: 38px; color: #155724; background-color: #d4edda; 
+                                    border: 1px solid #c3e6cb; border-radius: 0.25rem; 
+                                    font-size: 0.85rem; font-weight: 500; padding: 0 4px; text-align: center;">
+                            {sonuc_mesaji}
+                        </div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
                 else:
-                    st.error(sonuc_mesaji)
+                    st.markdown(
+                        f"""
+                        <div style="display: flex; align-items: center; justify-content: center; 
+                                    height: 38px; color: #721c24; background-color: #f8d7da; 
+                                    border: 1px solid #f5c6cb; border-radius: 0.25rem; 
+                                    font-size: 0.85rem; font-weight: 500; padding: 0 4px; text-align: center;">
+                            {sonuc_mesaji}
+                        </div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
             
         st.markdown("**Orijinal Çözünürlük Pikselleri:**")
         
