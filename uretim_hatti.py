@@ -40,14 +40,18 @@ def calistir(drive_service, sheets_client):
                             request = drive_service.files().get_media(fileId=satir["drive_file_id"])
                             mockup_bytes = request.execute()
                             
-                            # 2. AYRI DOSYADAKİ FONKSİYONU KULLANARAK BİRLEŞTİR
+                            # E-Tablo'dan dönme açısını çekiyoruz (Boşsa veya yoksa 0 kabul et)
+                            aci = int(satir.get("dondurme_acisi", 0) or 0)
+                            
+                            # 2. AYRI DOSYADAKİ FONKSİYONU KULLANARAK BİRLEŞTİR (Açı parametresi eklendi)
                             islenmis_gorsel_bytes = gorsel_islem.mockup_olustur(
                                 mockup_bytes, 
                                 tasarim, 
                                 satir["x_noktasi"], 
                                 satir["y_noktasi"], 
                                 satir["genislik"], 
-                                satir["yukseklik"]
+                                satir["yukseklik"],
+                                aci
                             )
                             
                             # 3. ZIP dosyasına ekle
