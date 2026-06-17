@@ -110,13 +110,26 @@ def calistir(drive_service=None, sheets_client=None):
 
     klasor_isimleri = {k['name']: k['id'] for k in model_klasorleri}
     
-    # --- YAN YANA İKİ ANA SÜTUN (Sağ tarafı %35'ten %42'ye genişleterek rahatlattık) ---
+    # --- YAN YANA İKİ ANA SÜTUN ---
     col_sol_gorsel, col_sag_bilgi = st.columns([58, 42])
     
     with col_sag_bilgi:
         secilen_klasor_adi = st.selectbox("T-Shirt Modelini Seçin (Kategori):", list(klasor_isimleri.keys()))
         secilen_klasor_id = klasor_isimleri[secilen_klasor_adi]
 
+    # --- GOOGLE SHEETS'TEN MEVCUT DURUMU ÇEKME ---
+    mevcut_id_listesi = set()
+    try:
+        TABLO_ID = "1KfloezbAz2saj3RKVoD6geVS9_wqefjjshWwMN0N-eY"
+        sheet = sheets_client.open_by_key(TABLO_ID).sheet1
+        tum_veriler = sheet.get_all_records()
+        for satir in tum_veriler:
+            if satir.get('drive_file_id'):
+                mevcut_id_listesi.add(str(satir.get('drive_file_id')))
+    except Exception as e:
+        st.error(f"Veritabanı kontrolü başarısız oldu: {e}")
+
+    # --- GÖRSELLERİ DRIVEdan ÇEKME VE İŞARETLEME ---
     try:
         gorsel_sorgusu = f"'{secilen_klasor_id}' in parents and mimeType contains 'image/' and trashed=false"
         gorsel_sonuclari = drive_service.files().list(q=gorsel_sorgusu, fields="files(id, name)").execute()
@@ -129,11 +142,30 @@ def calistir(drive_service=None, sheets_client=None):
             st.info(f"Seçilen klasörde görsel bulunmuyor.")
         return
 
-    gorsel_isimleri = {g['name']: g['id'] for g in gorseller}
+    # İşaretli haritalama yapılarını kuralım
+    selectbox_secenekleri = []
+    gorsel_id_haritasi = {}       # gosterim_adi -> drive_file_id
+    gorsel_orj_ad_haritasi = {}   # gosterim_adi -> orijinal_dosya_adi
+
+    for g in gorseller:
+        f_id = str(g['id'])
+        f_name = g['name']
+        
+        # Eğer bu dosya ID veritabanında varsa başına ✅, yoksa ❌ koyuyoruz
+        is_exist = f_id in mevcut_id_listesi
+        isaret = "✅ " if is_exist else "❌ "
+        gosterim_adi = f"{isaret}{f_name}"
+        
+        selectbox_secenekleri.append(gosterim_adi)
+        gorsel_id_haritasi[gosterim_adi] = f_id
+        gorsel_orj_ad_haritasi[gosterim_adi] = f_name
     
     with col_sag_bilgi:
-        secilen_gorsel_adi = st.selectbox("Mockup Görseli Seçin:", list(gorsel_isimleri.keys()))
-        secilen_gorsel_id = gorsel_isimleri[secilen_gorsel_id] if secilen_gorsel_adi not in gorsel_isimleri else gorsel_isimleri[secilen_gorsel_adi]
+        secilen_gosterim_adi = st.selectbox("Mockup Görseli Seçin:", selectbox_secenekleri)
+        
+        # Seçilen harika arayüz isminden arka plandaki gerçek ID ve Orijinal isimleri çözüyoruz
+        secilen_gorsel_id = gorsel_id_haritasi[secilen_gosterim_adi]
+        secilen_gorsel_adi = gorsel_orj_ad_haritasi[secilen_gosterim_adi]
 
     BASLANGIC_W, BASLANGIC_H = 150, 170
     BASLANGIC_X, BASLANGIC_Y = 50, 50
@@ -230,7 +262,6 @@ def calistir(drive_service=None, sheets_client=None):
 
     # --- SAĞ SÜTUN ---
     with col_sag_bilgi:
-        # Butona daha fazla alan tanımak için sütun oranını [62, 38] yaptık
         col_btn, col_msg = st.columns([62, 38])
         
         with col_btn:
@@ -239,7 +270,7 @@ def calistir(drive_service=None, sheets_client=None):
         if kaydet_butonu:
             basarili, sonuc_mesaji = kaydet_veritabani(
                 sheets_client, 
-                secilen_gorsel_adi,  
+                secilen_gorsel_adi,  # Veritabanına emojiler olmadan saf ismi gider.
                 secilen_klasor_adi,  
                 secilen_gorsel_id,   
                 st.session_state.val_x, 
@@ -248,7 +279,6 @@ def calistir(drive_service=None, sheets_client=None):
                 st.session_state.val_h
             )
             with col_msg:
-                # Butonu asla ezmeyen, yükseklik odaklı kompakt mini-onay kutuları
                 if basarili:
                     st.markdown(
                         f"""
@@ -261,6 +291,8 @@ def calistir(drive_service=None, sheets_client=None):
                         """, 
                         unsafe_allow_html=True
                     )
+                    # Kayıt başarılıysa listedeki işaretin anında ✅'ye dönmesi için sayfayı tetikliyoruz
+                    st.rerun()
                 else:
                     st.markdown(
                         f"""
