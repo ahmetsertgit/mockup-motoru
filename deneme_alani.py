@@ -8,7 +8,7 @@ from googleapiclient.http import MediaIoBaseDownload
 def kaydet_veritabani(sheets_client, mockup_name, kategori, drive_file_id, x, y, w, h):
     """
     Belirtilen Google Sheet tablosunda drive_file_id kontrolü yapar.
-    Varsa o satırı tamamen günceller, yoksa yeni satır olarak ekler.
+    Sonucu arayüzde yan yana göstermek için (Durum, Mesaj) olarak döner.
     """
     try:
         TABLO_ID = "1KfloezbAz2saj3RKVoD6geVS9_wqefjjshWwMN0N-eY"
@@ -27,15 +27,15 @@ def kaydet_veritabani(sheets_client, mockup_name, kategori, drive_file_id, x, y,
         if bulunan_satir:
             guncel_satir_verisi = [[mevcut_mockup_id, mockup_name, kategori, drive_file_id, x, y, w, h]]
             sheet.update(f"A{bulunan_satir}:H{bulunan_satir}", guncel_satir_verisi)
-            st.success(f"🔄 '{mockup_name}' güncellendi! (Satır: {bulunan_satir})")
+            return True, f"🔄 Güncellendi! (Satır: {bulunan_satir})"
         else:
             yeni_id = len(tum_veriler) + 1
             yeni_satir = [yeni_id, mockup_name, kategori, drive_file_id, x, y, w, h]
             sheet.append_row(yeni_satir)
-            st.success(f"💾 Yeni mockup başarıyla kaydedildi! (ID: {yeni_id})")
+            return True, f"💾 Kaydedildi! (ID: {yeni_id})"
             
     except Exception as e:
-        st.error(f"Veritabanı kayıt hatası: {e}")
+        return False, f"Hata: {e}"
 
 def manual_update(olcek_orani, tetikleyen_kutu):
     """Kullanıcı arayüzdeki sayı kutularına ELLE giriş yaptığında çalışır."""
@@ -71,16 +71,14 @@ def manual_update(olcek_orani, tetikleyen_kutu):
     st.session_state.cropper_version += 1
 
 def calistir(drive_service=None, sheets_client=None):
-    # --- TEPE BOŞLUĞUNU SIFIRLAYAN CSS ENJEKSİYONU ---
+    # --- TEPE BOŞLUĞUNU SIFIRLAYAN CSS ---
     st.markdown(
         """
         <style>
-            /* Streamlit'in ana gövdedeki tepe boşluğunu yok ediyoruz */
             .block-container {
                 padding-top: 1rem !important;
                 padding-bottom: 0rem !important;
             }
-            /* Üst bar boşluğunu minimize ediyoruz */
             header[data-testid="stHeader"] {
                 height: 1rem !important;
                 background: transparent !important;
@@ -232,8 +230,14 @@ def calistir(drive_service=None, sheets_client=None):
 
     # --- SAĞ SÜTUN ---
     with col_sag_bilgi:
-        if st.button("💾 Konumu Veritabanına Kaydet", type="primary", use_container_width=True):
-            kaydet_veritabani(
+        # Buton ve Bildirim Mesajı İçin Yan Yana Alt Sütunlar
+        col_btn, col_msg = st.columns([55, 45])
+        
+        with col_btn:
+            kaydet_butonu = st.button("💾 Konumu Veritabanına Kaydet", type="primary", use_container_width=True)
+            
+        if kaydet_butonu:
+            basarili, sonuc_mesaji = kaydet_veritabani(
                 sheets_client, 
                 secilen_gorsel_adi,  
                 secilen_klasor_adi,  
@@ -243,6 +247,11 @@ def calistir(drive_service=None, sheets_client=None):
                 st.session_state.val_w, 
                 st.session_state.val_h
             )
+            with col_msg:
+                if basarili:
+                    st.success(sonuc_mesaji)
+                else:
+                    st.error(sonuc_mesaji)
             
         st.markdown("**Orijinal Çözünürlük Pikselleri:**")
         
