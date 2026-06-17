@@ -5,20 +5,20 @@ from streamlit_cropper import st_cropper
 import io
 from googleapiclient.http import MediaIoBaseDownload
 
-def kaydet_veritabani(sheets_client, kategori, drive_file_id, x, y, w, h):
+def kaydet_veritabani(sheets_client, mockup_name, kategori, drive_file_id, x, y, w, h):
     """
     Belirtilen Google Sheet tablosunda drive_file_id kontrolü yapar.
-    Varsa satırı günceller, yoksa yeni satır ekler.
+    Varsa o satırı tamamen günceller, yoksa yeni satır olarak ekler.
     """
     try:
         TABLO_ID = "1KfloezbAz2saj3RKVoD6geVS9_wqefjjshWwMN0N-eY"
         sheet = sheets_client.open_by_key(TABLO_ID).sheet1
-        tum_veriler = sheet.get_all_records() # Başlıkları otomatik okur
+        tum_veriler = sheet.get_all_records()
         
         bulunan_satir = None
         mevcut_mockup_id = None
         
-        # Tabloda bu görselin daha önce kaydedilip kaydedilmediğini kontrol et
+        # Tabloda bu görselin daha önce kaydedilip kaydedilmediğini drive_file_id ile kontrol et
         for i, satir in enumerate(tum_veriler):
             if str(satir.get('drive_file_id')) == str(drive_file_id):
                 bulunan_satir = i + 2 # 1. satır başlık olduğu için index'e 2 ekliyoruz
@@ -26,17 +26,17 @@ def kaydet_veritabani(sheets_client, kategori, drive_file_id, x, y, w, h):
                 break
 
         if bulunan_satir:
-            # Görsel zaten var, eski veriyi yenisiyle DEĞİŞTİR (Overwrite)
-            # Sıralama: mockup_id, kategori, drive_file_id, x_noktasi, y_noktasi, genislik, yukseklik
-            guncel_satir_verisi = [[mevcut_mockup_id, kategori, drive_file_id, x, y, w, h]]
-            sheet.update(f"A{bulunan_satir}:G{bulunan_satir}", guncel_satir_verisi)
-            st.success(f"🔄 '{kategori}' kategorisindeki görsel güncellendi! (Satır: {bulunan_satir})")
+            # Görsel zaten var, eski veriyi yenisiyle DEĞİŞTİR (A'dan H'ye tüm satır)
+            # Sıralama: mockup_id, mockup_name, kategori, drive_file_id, x_noktasi, y_noktasi, genislik, yukseklik
+            guncel_satir_verisi = [[mevcut_mockup_id, mockup_name, kategori, drive_file_id, x, y, w, h]]
+            sheet.update(f"A{bulunan_satir}:H{bulunan_satir}", guncel_satir_verisi)
+            st.success(f"🔄 '{mockup_name}' adlı görselin verileri güncellendi! (Satır: {bulunan_satir})")
         else:
             # Görsel ilk defa ekleniyor, YENİ SATIR oluştur
-            yeni_id = len(tum_veriler) + 1 # Basit sıralı ID üretimi
-            yeni_satir = [yeni_id, kategori, drive_file_id, x, y, w, h]
+            yeni_id = len(tum_veriler) + 1 # Sıralı ID üretimi
+            yeni_satir = [yeni_id, mockup_name, kategori, drive_file_id, x, y, w, h]
             sheet.append_row(yeni_satir)
-            st.success(f"💾 Yeni mockup başarıyla veritabanına kaydedildi! (ID: {yeni_id})")
+            st.success(f"💾 Yeni mockup başarıyla kaydedildi! (ID: {yeni_id} - {mockup_name})")
             
     except Exception as e:
         st.error(f"Veritabanı kayıt işlemi sırasında hata oluştu: {e}")
@@ -103,25 +103,50 @@ def calistir(drive_service=None, sheets_client=None):
         return
 
     klasor_isimleri = {k['name']: k['id'] for k in model_klasorleri}
-    secilen_klasor_adi = st.selectbox("T-Shirt Modelini Seçin (Kategori):", list(klasor_isimleri.keys()))
-    secilen_klasor_id = klasor_isimleri[secilen_klasor_adi]
+    
+    # --- ÜST PANEL DÜZENİ (Seçimler ve Kaydet Butonu Yan Yana) ---
+    col_ust_sol, col_ust_sag = st.columns([65, 35])
+    
+    with col_ust_sol:
+        secilen_klasor_adi = st.selectbox("T-Shirt Modelini Seçin (Kategori):", list(klasor_isimleri.keys()))
+        secilen_klasor_id = klasor_isimleri[secilen_klasor_adi]
 
-    # Seçilen Klasördeki Görselleri Çek
-    try:
-        gorsel_sorgusu = f"'{secilen_klasor_id}' in parents and mimeType contains 'image/' and trashed=false"
-        gorsel_sonuclari = drive_service.files().list(q=gorsel_sorgusu, fields="files(id, name)").execute()
-        gorseller = gorsel_sonuclari.get('files', [])
-    except Exception as e:
-        st.error(f"Görseller okunurken hata oluştu: {e}")
-        gorseller = []
+        # Seçilen Klasördeki Görselleri Çek
+        try:
+            gorsel_sorgusu = f"'{secilen_klasor_id}' in parents and mimeType contains 'image/' and trashed=false"
+            gorsel_sonuclari = drive_service.files().list(q=gorsel_sorgusu, fields="files(id, name)").execute()
+            gorseller = gorsel_sonuclari.get('files', [])
+        except Exception as e:
+            st.error(f"Görseller okunurken hata oluştu: {e}")
+            gorseller = []
 
-    if not gorseller:
-        st.info(f"{secilen_klasor_adi} klasöründe görsel bulunmuyor.")
-        return
+        if not gorseller:
+            st.info(f"{secilen_klasor_adi} klasöründe görsel bulunmuyor.")
+            return
 
-    gorsel_isimleri = {g['name']: g['id'] for g in gorseller}
-    secilen_gorsel_adi = st.selectbox("Mockup Görseli Seçin:", list(gorsel_isimleri.keys()))
-    secilen_gorsel_id = gorsel_isimleri[secilen_gorsel_adi]
+        gorsel_isimleri = {g['name']: g['id'] for g in gorseller}
+        secilen_gorsel_adi = st.selectbox("Mockup Görseli Seçin:", list(gorsel_isimleri.keys()))
+        secilen_gorsel_id = gorsel_isimleri[secilen_gorsel_adi]
+        
+    with col_ust_sag:
+        # Seçim kutularıyla dikeyde güzel hizalanması için ufak bir boşluk eklendi
+        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+        st.markdown("**Veritabanı İşlemleri**")
+        
+        if st.button("💾 Konumu Veritabanına Kaydet", type="primary", use_container_width=True):
+            kaydet_veritabani(
+                sheets_client, 
+                secilen_gorsel_adi,  # mockup_name
+                secilen_klasor_adi,  # kategori
+                secilen_gorsel_id,   # drive_file_id
+                st.session_state.get('val_x', 0), 
+                st.session_state.get('val_y', 0), 
+                st.session_state.get('val_w', 0), 
+                st.session_state.get('val_h', 0)
+            )
+
+    st.markdown("---")
+    # --- ALT PANEL DÜZENİ (Görsel ve Koordinat Bilgileri) ---
 
     BASLANGIC_W, BASLANGIC_H = 150, 170
     BASLANGIC_X, BASLANGIC_Y = 50, 50
@@ -236,23 +261,6 @@ def calistir(drive_service=None, sheets_client=None):
         m_col3, m_col4 = st.columns(2)
         m_col3.number_input("Orijinal Genişlik", step=1, key="val_w", on_change=manual_update, args=(olcek_orani, "w"))
         m_col4.number_input("Orijinal Yükseklik", step=1, key="val_h", on_change=manual_update, args=(olcek_orani, "h"))
-        
-        st.markdown("---")
-        st.markdown("**Veritabanı İşlemleri**")
-        
-        if st.button("💾 Konumu Veritabanına Kaydet", type="primary", use_container_width=True):
-            # Değişken eşleşmeleri:
-            # secilen_klasor_adi -> kategori
-            # secilen_gorsel_id  -> drive_file_id
-            kaydet_veritabani(
-                sheets_client, 
-                secilen_klasor_adi, 
-                secilen_gorsel_id, 
-                st.session_state.val_x, 
-                st.session_state.val_y, 
-                st.session_state.val_w, 
-                st.session_state.val_h
-            )
 
 if __name__ == "__main__":
     st.set_page_config(layout="wide")
