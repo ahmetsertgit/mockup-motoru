@@ -127,11 +127,10 @@ def calistir(drive_service=None, sheets_client=None):
             f_id = satir.get('drive_file_id')
             if f_id:
                 try:
-                    # Hata buradaydı: Sütun isimleri x_noktasi, y_noktasi, genislik, yukseklik olmalıydı!
+                    # Tam olarak senin tablodaki sütun isimlerinle eşleştirdik:
                     w_val = int(satir.get('genislik', 0) or 0)
                     h_val = int(satir.get('yukseklik', 0) or 0)
                     
-                    # Eğer w_val 0 ise tablo boş kabul edilir, varsayılan değerlerle açılır
                     if w_val > 0 and h_val > 0:
                         mevcut_gorsel_verileri[str(f_id)] = {
                             'x': int(satir.get('x_noktasi', 0) or 0),
@@ -194,3 +193,167 @@ def calistir(drive_service=None, sheets_client=None):
     if 'loaded_image_id' not in st.session_state or st.session_state.loaded_image_id != secilen_gorsel_id:
         with col_sol_gorsel:
             with st.spinner('Görsel çekiliyor...'):
+                request = drive_service.files().get_media(fileId=secilen_gorsel_id)
+                fh = io.BytesIO()
+                downloader = MediaIoBaseDownload(fh, request)
+                done = False
+                while done is False:
+                    status, done = downloader.next_chunk()
+                fh.seek(0)
+                
+                ref_img = Image.open(fh)
+                orj_genislik, orj_yukseklik = ref_img.size
+                
+                HEDEF_YUKSEKLIK = 500
+                olcek_orani = orj_yukseklik / HEDEF_YUKSEKLIK
+                yeni_w = int(round(orj_genislik / olcek_orani))
+                yeni_h = HEDEF_YUKSEKLIK
+                
+                st.session_state.cropper_gorseli = ref_img.resize((yeni_w, yeni_h), Image.Resampling.LANCZOS)
+                st.session_state.olcek_orani = olcek_orani
+                st.session_state.loaded_image_id = secilen_gorsel_id
+                
+                # Güncelleme Kontrolü
+                if secilen_gorsel_id in mevcut_gorsel_verileri:
+                    v = mevcut_gorsel_verileri[secilen_gorsel_id]
+                    st.session_state.val_x = int(v['x'])
+                    st.session_state.val_y = int(v['y'])
+                    st.session_state.val_w = int(v['w'])
+                    st.session_state.val_h = int(v['h'])
+                    
+                    mx = st.session_state.val_x / olcek_orani
+                    my = st.session_state.val_y / olcek_orani
+                    mw = st.session_state.val_w / olcek_orani
+                    mh = st.session_state.val_h / olcek_orani
+                else:
+                    st.session_state.val_x = int(round(BASLANGIC_X * olcek_orani))
+                    st.session_state.val_y = int(round(BASLANGIC_Y * olcek_orani))
+                    st.session_state.val_w = int(round(BASLANGIC_W * olcek_orani))
+                    st.session_state.val_h = int(round(BASLANGIC_H * olcek_orani))
+                    
+                    mx, my, mw, mh = BASLANGIC_X, BASLANGIC_Y, BASLANGIC_W, BASLANGIC_H
+
+                st.session_state.manual_coords = (int(round(mx)), int(round(mx + mw)), int(round(my)), int(round(my + mh)))
+                st.session_state.cur_x_w_h = {"x": int(round(mx)), "y": int(round(my)), "w": int(round(mw)), "h": int(round(mh))}
+                st.session_state.just_loaded = True
+                st.session_state.cropper_version += 1
+
+    ratio_input = st.session_state.get('ratio_str', '15:17')
+    aspect_ratio = None
+    if ratio_input and ":" in ratio_input:
+        try:
+            parts = ratio_input.split(":")
+            w_ratio, h_ratio = float(parts[0]), float(parts[1])
+            if w_ratio > 0 and h_ratio > 0:
+                aspect_ratio = (w_ratio, h_ratio)
+        except ValueError:
+            pass
+
+    # --- SOL SÜTUN ---
+    with col_sol_gorsel:
+        box_coords = st_cropper(
+            st.session_state.cropper_gorseli, 
+            realtime_update=True, 
+            box_color='blue', 
+            aspect_ratio=aspect_ratio, 
+            return_type='box',
+            default_coords=st.session_state.manual_coords,
+            key=f"cropper_{st.session_state.cropper_version}",
+            should_resize_image=False
+        )
+    
+    # --- AKILLI SENKRONİZASYON VE KORUMA KALKANI ---
+    if box_coords:
+        if st.session_state.get('just_loaded', False):
+            st.session_state.just_loaded = False
+        else:
+            bx = int(round(box_coords['left']))
+            by = int(round(box_coords['top']))
+            bw = int(round(box_coords['width']))
+            bh = int(round(box_coords['height']))
+            
+            if bw > 0 and bh > 0:
+                olcek_orani = st.session_state.olcek_orani
+                son_w = st.session_state.cur_x_w_h["w"]
+                son_h = st.session_state.cur_x_w_h["h"]
+                son_x = st.session_state.cur_x_w_h["x"]
+                son_y = st.session_state.cur_x_w_h["y"]
+                
+                if bx != son_x or by != son_y or bw != son_w or bh != son_h:
+                    size_changed = abs(bw - son_w) > 5 or abs(bh - son_h) > 5
+                    
+                    st.session_state.val_x = int(round(bx * olcek_orani))
+                    st.session_state.val_y = int(round(by * olcek_orani))
+                    st.session_state.cur_x_w_h["x"] = bx
+                    st.session_state.cur_x_w_h["y"] = by
+                    
+                    if size_changed:
+                        st.session_state.val_w = int(round(bw * olcek_orani))
+                        st.session_state.val_h = int(round(bh * olcek_orani))
+                        st.session_state.cur_x_w_h["w"] = bw
+                        st.session_state.cur_x_w_h["h"] = bh
+
+    # --- SAĞ SÜTUN ---
+    with col_sag_bilgi:
+        col_btn, col_msg = st.columns([62, 38])
+        
+        with col_btn:
+            kaydet_butonu = st.button("💾 Konumu Veritabanına Kaydet", type="primary", use_container_width=True)
+            
+        if kaydet_butonu:
+            basarili, sonuc_mesaji = kaydet_veritabani(
+                sheets_client, 
+                secilen_gorsel_adi,  
+                secilen_klasor_adi,  
+                secilen_gorsel_id,   
+                st.session_state.val_x, 
+                st.session_state.val_y, 
+                st.session_state.val_w, 
+                st.session_state.val_h
+            )
+            with col_msg:
+                if basarili:
+                    st.markdown(
+                        f"""
+                        <div style="display: flex; align-items: center; justify-content: center; 
+                                    height: 38px; color: #155724; background-color: #d4edda; 
+                                    border: 1px solid #c3e6cb; border-radius: 0.25rem; 
+                                    font-size: 0.85rem; font-weight: 500; padding: 0 4px; text-align: center;">
+                            {sonuc_mesaji}
+                        </div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
+                    st.rerun()
+                else:
+                    st.markdown(
+                        f"""
+                        <div style="display: flex; align-items: center; justify-content: center; 
+                                    height: 38px; color: #721c24; background-color: #f8d7da; 
+                                    border: 1px solid #f5c6cb; border-radius: 0.25rem; 
+                                    font-size: 0.85rem; font-weight: 500; padding: 0 4px; text-align: center;">
+                            {sonuc_mesaji}
+                        </div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
+            
+        st.markdown("**Orijinal Çözünürlük Pikselleri:**")
+        
+        olcek = st.session_state.get('olcek_orani', 1.0)
+        m_col1, m_col2 = st.columns(2)
+        m_col1.number_input("Orijinal X", step=1, key="val_x", on_change=manual_update, args=(olcek, "x"))
+        m_col2.number_input("Orijinal Y", step=1, key="val_y", on_change=manual_update, args=(olcek, "y"))
+        
+        m_col3, m_col4 = st.columns(2)
+        m_col3.number_input("Orijinal Genişlik", step=1, key="val_w", on_change=manual_update, args=(olcek, "w"))
+        m_col4.number_input("Orijinal Yükseklik", step=1, key="val_h", on_change=manual_update, args=(olcek, "h"))
+        
+        def ratio_changed():
+            st.session_state.just_loaded = True
+            st.session_state.cropper_version += 1
+        st.text_input("🔒 En : Boy Oranı Kilidi", key="ratio_str", on_change=ratio_changed)
+
+if __name__ == "__main__":
+    st.set_page_config(layout="wide")
+    st.error("Lütfen uygulamayı app.py üzerinden çalıştırın.")
