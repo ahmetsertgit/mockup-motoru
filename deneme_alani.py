@@ -1,6 +1,7 @@
 # deneme_alani.py
 import streamlit as st
 from PIL import Image, ImageDraw
+from streamlit_cropper import st_cropper  # <-- Eksik olan ve hataya sebep olan satır eklendi
 import io
 import math
 from googleapiclient.http import MediaIoBaseDownload
