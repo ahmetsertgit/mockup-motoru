@@ -5,31 +5,41 @@ from streamlit_cropper import st_cropper
 import io
 from googleapiclient.http import MediaIoBaseDownload
 
-def kaydet_veritabani(sheets_client, gorsel_adi, gorsel_id, x, y, w, h):
-    """Bulunan veya yeni eklenen görsel verilerini belirtilen Google Sheets'e yazar."""
+def kaydet_veritabani(sheets_client, kategori, drive_file_id, x, y, w, h):
+    """
+    Belirtilen Google Sheet tablosunda drive_file_id kontrolü yapar.
+    Varsa satırı günceller, yoksa yeni satır ekler.
+    """
     try:
-        # İsim yerine doğrudan Tablo ID'si ile bağlantı kuruluyor
         TABLO_ID = "1KfloezbAz2saj3RKVoD6geVS9_wqefjjshWwMN0N-eY"
         sheet = sheets_client.open_by_key(TABLO_ID).sheet1
-        tum_veriler = sheet.get_all_records()
+        tum_veriler = sheet.get_all_records() # Başlıkları otomatik okur
         
         bulunan_satir = None
+        mevcut_mockup_id = None
+        
+        # Tabloda bu görselin daha önce kaydedilip kaydedilmediğini kontrol et
         for i, satir in enumerate(tum_veriler):
-            if satir.get('Gorsel_ID') == gorsel_id:
-                bulunan_satir = i + 2 # 1. satır başlık, index 0'dan başlıyor
+            if str(satir.get('drive_file_id')) == str(drive_file_id):
+                bulunan_satir = i + 2 # 1. satır başlık olduğu için index'e 2 ekliyoruz
+                mevcut_mockup_id = satir.get('mockup_id')
                 break
 
         if bulunan_satir:
-            # Sadece C, D, E, F (X, Y, W, H) sütunlarını güncelle
-            sheet.update(f"C{bulunan_satir}:F{bulunan_satir}", [[x, y, w, h]])
-            st.success(f"✅ '{gorsel_adi}' için yerleşim güncellendi! (Satır: {bulunan_satir})")
+            # Görsel zaten var, eski veriyi yenisiyle DEĞİŞTİR (Overwrite)
+            # Sıralama: mockup_id, kategori, drive_file_id, x_noktasi, y_noktasi, genislik, yukseklik
+            guncel_satir_verisi = [[mevcut_mockup_id, kategori, drive_file_id, x, y, w, h]]
+            sheet.update(f"A{bulunan_satir}:G{bulunan_satir}", guncel_satir_verisi)
+            st.success(f"🔄 '{kategori}' kategorisindeki görsel güncellendi! (Satır: {bulunan_satir})")
         else:
-            # Yeni satır olarak ekle
-            yeni_satir = [gorsel_adi, gorsel_id, x, y, w, h]
+            # Görsel ilk defa ekleniyor, YENİ SATIR oluştur
+            yeni_id = len(tum_veriler) + 1 # Basit sıralı ID üretimi
+            yeni_satir = [yeni_id, kategori, drive_file_id, x, y, w, h]
             sheet.append_row(yeni_satir)
-            st.success(f"✅ '{gorsel_adi}' yeni kayıt olarak eklendi!")
+            st.success(f"💾 Yeni mockup başarıyla veritabanına kaydedildi! (ID: {yeni_id})")
+            
     except Exception as e:
-        st.error(f"Veritabanı bağlantı hatası: {e}")
+        st.error(f"Veritabanı kayıt işlemi sırasında hata oluştu: {e}")
 
 def manual_update(olcek_orani, tetikleyen_kutu):
     """Kullanıcı arayüzdeki sayı kutularına ELLE giriş yaptığında çalışır."""
@@ -93,7 +103,7 @@ def calistir(drive_service=None, sheets_client=None):
         return
 
     klasor_isimleri = {k['name']: k['id'] for k in model_klasorleri}
-    secilen_klasor_adi = st.selectbox("T-Shirt Modelini Seçin:", list(klasor_isimleri.keys()))
+    secilen_klasor_adi = st.selectbox("T-Shirt Modelini Seçin (Kategori):", list(klasor_isimleri.keys()))
     secilen_klasor_id = klasor_isimleri[secilen_klasor_adi]
 
     # Seçilen Klasördeki Görselleri Çek
@@ -231,9 +241,12 @@ def calistir(drive_service=None, sheets_client=None):
         st.markdown("**Veritabanı İşlemleri**")
         
         if st.button("💾 Konumu Veritabanına Kaydet", type="primary", use_container_width=True):
+            # Değişken eşleşmeleri:
+            # secilen_klasor_adi -> kategori
+            # secilen_gorsel_id  -> drive_file_id
             kaydet_veritabani(
                 sheets_client, 
-                secilen_gorsel_adi, 
+                secilen_klasor_adi, 
                 secilen_gorsel_id, 
                 st.session_state.val_x, 
                 st.session_state.val_y, 
